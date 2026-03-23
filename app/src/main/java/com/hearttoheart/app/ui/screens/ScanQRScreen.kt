@@ -43,6 +43,7 @@ import java.util.concurrent.Executors
 
 /**
  * Screen that scans a partner's QR code to initiate pairing.
+ * Creates a new anonymous account and sends pairing request from that account.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,7 +55,7 @@ fun ScanQRScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val repository = remember { PairingRepository(context) }
     val scope = rememberCoroutineScope()
-    
+
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -62,39 +63,41 @@ fun ScanQRScreen(
             ) == PackageManager.PERMISSION_GRANTED
         )
     }
-    
+
+    // Our account UID (created when we scan a QR)
+    var ourAccountUid by remember { mutableStateOf<String?>(null) }
+    // The scanned user's UID (from the QR)
     var scannedUserId by remember { mutableStateOf<String?>(null) }
-    var scannedEncryptionKey by remember { mutableStateOf<String?>(null) }  // Partner's encryption key from QR
-    var scannedVerificationCode by remember { mutableStateOf<String?>(null) }  // Verification code from QR
+    // Partner's encryption key from QR
+    var scannedEncryptionKey by remember { mutableStateOf<String?>(null) }
+    var scannedVerificationCode by remember { mutableStateOf<String?>(null) }
     var isSendingRequest by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var pairingStatus by remember { mutableStateOf<PairingStatus?>(null) }
-    
+
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         hasCameraPermission = granted
     }
-    
+
     // Request camera permission on launch
     LaunchedEffect(Unit) {
         if (!hasCameraPermission) {
             permissionLauncher.launch(Manifest.permission.CAMERA)
         }
-        // Initialize user document
-        repository.initializeUserDocument()
     }
-    
+
     // Listen for pairing status when we've sent a request
-    LaunchedEffect(scannedUserId) {
-        if (scannedUserId == null) return@LaunchedEffect
-        
-        repository.observeMyRequestStatus(scannedUserId!!).collect { status ->
+    LaunchedEffect(ourAccountUid, scannedUserId) {
+        if (ourAccountUid == null || scannedUserId == null) return@LaunchedEffect
+
+        repository.observePairingStatusForAccount(ourAccountUid!!, scannedUserId!!).collect { status ->
             pairingStatus = status
-            
+
             if (status == PairingStatus.Accepted) {
-                // Complete pairing
-                val result = repository.completePairing(scannedUserId!!)
+                // Complete pairing for our account
+                val result = repository.completePairingForAccount(ourAccountUid!!, scannedUserId!!)
                 if (result.isSuccess) {
                     onPairingComplete()
                 } else {
@@ -190,8 +193,10 @@ fun ScanQRScreen(
                                 )
                                 Spacer(modifier = Modifier.height(24.dp))
                                 OutlinedButton(onClick = {
+                                    ourAccountUid = null
                                     scannedUserId = null
                                     scannedEncryptionKey = null
+                                    scannedVerificationCode = null
                                     pairingStatus = null
                                     error = null
                                 }) {
@@ -211,8 +216,10 @@ fun ScanQRScreen(
                                 )
                                 Spacer(modifier = Modifier.height(24.dp))
                                 OutlinedButton(onClick = {
+                                    ourAccountUid = null
                                     scannedUserId = null
                                     scannedEncryptionKey = null
+                                    scannedVerificationCode = null
                                     pairingStatus = null
                                 }) {
                                     Text("Try Again")
@@ -336,24 +343,40 @@ fun ScanQRScreen(
                             // Parse the deep link: heart-to-heart://pair?uid=USER_ID&key=ENCRYPTION_KEY
                             val qrData = parseDeepLink(qrContent)
                             if (qrData.userId != null) {
+                                isSendingRequest = true
                                 scannedUserId = qrData.userId
                                 scannedEncryptionKey = qrData.encryptionKey
-                                // Generate verification code locally for security
-                                val generatedCode = generateVerificationCode()
-                                scannedVerificationCode = generatedCode
-                                isSendingRequest = true
-                                
+
                                 scope.launch {
-                                    // Pass their encryption key and our generated verification code
-                                    val result = repository.sendPairingRequest(
-                                        qrData.userId, 
-                                        qrData.encryptionKey,
-                                        generatedCode
+                                    // Create a NEW anonymous account to send the pairing request from
+                                    val accountResult = repository.createAnonymousAccount()
+                                    if (accountResult.isFailure) {
+                                        error = "Failed to create pairing account: ${accountResult.exceptionOrNull()?.message}"
+                                        isSendingRequest = false
+                                        scannedUserId = null
+                                        scannedEncryptionKey = null
+                                        return@launch
+                                    }
+
+                                    val account = accountResult.getOrThrow()
+                                    ourAccountUid = account.uid
+
+                                    // Generate verification code locally
+                                    val generatedCode = generateVerificationCode()
+                                    scannedVerificationCode = generatedCode
+
+                                    // Send pairing request FROM our new account TO the scanned user
+                                    val result = repository.sendPairingRequestFromAccount(
+                                        accountUid = account.uid,
+                                        targetUserId = qrData.userId,
+                                        theirEncryptionKey = qrData.encryptionKey
                                     )
+
                                     isSendingRequest = false
-                                    
+
                                     if (result.isFailure) {
                                         error = result.exceptionOrNull()?.message ?: "Failed to send request"
+                                        ourAccountUid = null
                                         scannedUserId = null
                                         scannedEncryptionKey = null
                                         scannedVerificationCode = null

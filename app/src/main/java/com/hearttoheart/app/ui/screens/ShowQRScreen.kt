@@ -39,7 +39,7 @@ private const val TAG = "ShowQRScreen"
 
 /**
  * Screen that displays the user's QR code for their partner to scan.
- * Also listens for incoming pairing requests.
+ * Creates a NEW anonymous account for this pairing and listens for incoming requests.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,69 +50,63 @@ fun ShowQRScreen(
     val context = LocalContext.current
     val repository = remember { PairingRepository(context) }
     val scope = rememberCoroutineScope()
-    
-    var userId by remember { mutableStateOf<String?>(null) }
+
+    // The account UID for this QR - created when showing the screen
+    var accountUid by remember { mutableStateOf<String?>(null) }
     var qrBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var incomingRequest by remember { mutableStateOf<PairingRequest?>(null) }
     var isAccepting by remember { mutableStateOf(false) }
-    
-    // Our encryption key - used when partner sends messages TO us
+
+    // Our encryption key for this account - used when partner sends messages TO us
     var myEncryptionKey by remember { mutableStateOf<String?>(null) }
-    
-    // Initialize user document and generate QR code
+
+    // Create new anonymous account and generate QR code
     LaunchedEffect(Unit) {
         try {
-            Log.d(TAG, "Starting QR screen initialization...")
-            
-            // Wait a moment for Firebase Auth to be ready
-            var attempts = 0
-            while (repository.getCurrentUserId() == null && attempts < 10) {
-                Log.d(TAG, "Waiting for auth... attempt $attempts")
-                delay(500)
-                attempts++
-            }
-            
-            // Get current user ID
-            userId = repository.getCurrentUserId()
-            Log.d(TAG, "User ID: $userId")
-            
-            if (userId != null) {
-                // Try to initialize user document in Firestore
-                val initResult = repository.initializeUserDocument()
-                if (initResult.isFailure) {
-                    Log.w(TAG, "Failed to init user doc: ${initResult.exceptionOrNull()?.message}")
-                    // Continue anyway - we can still show QR code
-                }
-                
-                // Generate encryption key for E2E encryption
-                myEncryptionKey = EncryptionHelper.generateKey()
-                Log.d(TAG, "Generated encryption key")
-                
-                // Generate QR code with deep link including encryption key
-                val deepLink = "heart-to-heart://pair?uid=$userId&key=$myEncryptionKey"
-                Log.d(TAG, "Generating QR for: heart-to-heart://pair?uid=$userId&key=<hidden>")
-                qrBitmap = generateQRCode(deepLink, 512)
-                Log.d(TAG, "QR bitmap generated: ${qrBitmap != null}")
+            Log.d(TAG, "Starting QR screen - creating new anonymous account...")
+
+            // Create a NEW anonymous account for this pairing
+            val accountResult = repository.createAnonymousAccount()
+            if (accountResult.isFailure) {
+                Log.e(TAG, "Failed to create anonymous account: ${accountResult.exceptionOrNull()?.message}")
+                error = "Failed to create pairing account. Please try again."
                 isLoading = false
-            } else {
-                Log.e(TAG, "User not signed in after waiting")
-                error = "Not signed in. Please restart the app."
-                isLoading = false
+                return@LaunchedEffect
             }
+
+            val account = accountResult.getOrThrow()
+            accountUid = account.uid
+            myEncryptionKey = account.encryptionKey
+
+            Log.d(TAG, "Created anonymous account: $accountUid")
+
+            // Initialize the account's Firestore document
+            val initResult = repository.initializeAccountDocument(account.uid)
+            if (initResult.isFailure) {
+                Log.w(TAG, "Failed to init account doc: ${initResult.exceptionOrNull()?.message}")
+                // Continue anyway - we can still show QR code
+            }
+
+            // Generate QR code with deep link containing the account UID and encryption key
+            val deepLink = "heart-to-heart://pair?uid=$accountUid&key=$myEncryptionKey"
+            Log.d(TAG, "Generating QR for: heart-to-heart://pair?uid=$accountUid&key=<hidden>")
+            qrBitmap = generateQRCode(deepLink, 512)
+            Log.d(TAG, "QR bitmap generated: ${qrBitmap != null}")
+            isLoading = false
         } catch (e: Exception) {
             Log.e(TAG, "Error initializing QR screen", e)
             error = e.message ?: "Failed to initialize"
             isLoading = false
         }
     }
-    
-    // Listen for incoming pairing requests
-    LaunchedEffect(userId) {
-        if (userId == null) return@LaunchedEffect
-        
-        repository.observePairingRequests().collect { requests ->
+
+    // Listen for incoming pairing requests for this specific account
+    LaunchedEffect(accountUid) {
+        if (accountUid == null) return@LaunchedEffect
+
+        repository.observePairingRequestsForAccount(accountUid!!).collect { requests ->
             // Show the most recent pending request
             incomingRequest = requests.maxByOrNull { it.requestedAt }
         }
@@ -317,12 +311,13 @@ fun ShowQRScreen(
                                         // Decline button
                                         OutlinedButton(
                                             onClick = {
+                                                if (accountUid == null) return@OutlinedButton
                                                 scope.launch {
-                                                    repository.declinePairingRequest(request)
+                                                    repository.declinePairingRequestForAccount(accountUid!!, request)
                                                     incomingRequest = null
                                                 }
                                             },
-                                            enabled = !isAccepting,
+                                            enabled = !isAccepting && accountUid != null,
                                             colors = ButtonDefaults.outlinedButtonColors(
                                                 contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                             ),
@@ -334,14 +329,11 @@ fun ShowQRScreen(
                                         // Accept button
                                         Button(
                                             onClick = {
+                                                if (accountUid == null) return@Button
                                                 scope.launch {
                                                     isAccepting = true
-                                                    // Save our own key for decrypting received messages
-                                                    if (myEncryptionKey != null) {
-                                                        repository.saveMyDecryptionKey(myEncryptionKey!!)
-                                                    }
-                                                    // Pass our encryption key so they can send encrypted messages to us
-                                                    val result = repository.acceptPairingRequest(request, myEncryptionKey)
+                                                    // Accept using the specific account
+                                                    val result = repository.acceptPairingRequestForAccount(accountUid!!, request)
                                                     isAccepting = false
                                                     if (result.isSuccess) {
                                                         onPairingComplete()
@@ -350,7 +342,7 @@ fun ShowQRScreen(
                                                     }
                                                 }
                                             },
-                                            enabled = !isAccepting,
+                                            enabled = !isAccepting && accountUid != null,
                                             colors = ButtonDefaults.buttonColors(containerColor = Coral),
                                             modifier = Modifier.weight(1f)
                                         ) {
