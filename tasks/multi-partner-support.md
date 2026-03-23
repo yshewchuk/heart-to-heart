@@ -64,28 +64,6 @@ heart-to-heart://pair?uid=ANONYMOUS_UID_A&key=KEY_A
 
 The QR does **not** contain the device's stable UID. This means an old QR is useless to anyone who scans it later — it points to an account that has already paired and cannot initiate new pairings.
 
-### Firestore Schema (No Changes)
-
-```
-users/{uid}
-  fcmToken: string
-
-users/{uid}/partners/{partnerId}
-  partnerUid: string
-  partnerFcmToken: string
-  displayName: string
-  pairedAt: timestamp
-  encryptionKey: string
-
-users/{uid}/pairingRequests/{requesterUid}
-  requesterUid: string
-  requesterFcmToken: string
-  requesterEncryptionKey: string
-  status: "pending" | "accepted" | "rejected"
-```
-
-Each anonymous account has its own `partners` document. The schema is identical to today.
-
 ### Local Storage Schema (DataStore)
 
 ```
@@ -166,6 +144,14 @@ Settings screen lists all accounts with partner name, nickname, and unpair optio
 
 <br>
 
+- [ ] **PR 0: Documentation baseline**
+  - Description: Audit and update existing documentation to reflect current implementation state. README "Next Steps" section lists 6 unimplemented items that are all implemented. Technical spec is outdated (references a "Next Steps" section and architecture that no longer matches). Also document that multi-partner support is in progress in the task plan. Update firestore.rules to reflect the actual schema (partners subcollection, encryptionKey field).
+  - Est: ~3 files, ~120 lines
+  - Status: Planned
+  - Dependencies: None
+
+<br>
+
 - [ ] **PR 1: Auth model — new anonymous account per pairing**
   - Description: Change PairingRepository to create a fresh Firebase anonymous account at QR generation time, not reuse a device-level account. QR contains the new account's UID. Save accounts in DataStore as a Map keyed by anonymous UID. Add check to reject pairing requests from already-paired accounts. Update ShowQRScreen and ScanQRScreen to use the new account-based flow.
   - Est: ~5 files, ~350 lines
@@ -191,7 +177,8 @@ Settings screen lists all accounts with partner name, nickname, and unpair optio
 ## Next Steps
 
 1. Review and merge this plan
-2. Implement PR 1 (auth model)
-3. Implement PR 2 (UI layer)
-4. Implement PR 3 (README)
-5. Mark each PR complete in this document
+2. Implement PR 0 (documentation baseline)
+3. Implement PR 1 (auth model)
+4. Implement PR 2 (UI layer)
+5. Implement PR 3 (README)
+6. Mark each PR complete in this document
