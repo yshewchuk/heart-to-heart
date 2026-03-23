@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Heart-to-Heart</string>
+    
+    <!-- Notification Categories -->
+    <string name="category_flutter">Flutter</string>
+    <string name="category_nudge">Nudge</string>
+    <string name="category_heartbeat">Heartbeat</string>
+    <string name="category_lifeline">Lifeline</string>
+    
+    <!-- Category Descriptions -->
+    <string name="flutter_desc">A gentle thought</string>
+    <string name="nudge_desc">Get their attention</string>
+    <string name="heartbeat_desc">Something important</string>
+    <string name="lifeline_desc">Emergency - bypasses silence</string>
+    
+    <!-- Notification Channels -->
+    <string name="channel_flutter">Gentle Thoughts</string>
+    <string name="channel_nudge">Nudges</string>
+    <string name="channel_heartbeat">Heartbeats</string>
+    <string name="channel_lifeline">Lifeline Alerts</string>
+    
+    <!-- Actions -->
+    <string name="send">Send</string>
+    <string name="acknowledge">Slide to Acknowledge</string>
+    <string name="add_note">Add a note (optional)</string>
+    <string name="pair_device">Pair Device</string>
+    <string name="scan_qr">Scan Partner\'s QR Code</string>
+    <string name="show_my_qr">Show My QR Code</string>
+</resources>

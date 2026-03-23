@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme -->
+    <style name="Theme.HeartToHeart" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/coral</item>
+        <item name="android:navigationBarColor">@color/soft_white</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+    
+    <!-- Alarm screen theme - full screen, no system UI -->
+    <style name="Theme.HeartToHeart.Alarm" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowTranslucentStatus">true</item>
+        <item name="android:windowTranslucentNavigation">true</item>
+    </style>
+</resources>

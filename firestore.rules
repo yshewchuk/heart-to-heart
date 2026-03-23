@@ -1,0 +1,61 @@
+rules_version = '2';
+
+// Firestore Security Rules for Heart-to-Heart
+// 
+// Structure:
+// /users/{userId}
+//   - fcmToken: string
+//   - createdAt: timestamp
+//   - partnerId: string (optional, set after pairing)
+//
+// /users/{userId}/pairingRequests/{requesterId}
+//   - requesterUid: string
+//   - requesterFcmToken: string
+//   - requestedAt: timestamp
+//   - status: "pending" | "accepted" | "rejected"
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Users collection
+    match /users/{userId} {
+      // Any authenticated user can read any user document
+      // (needed to get partner's FCM token after pairing)
+      allow read: if request.auth != null;
+      
+      // Users can only create/update their own document
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+      
+      // No deletion allowed
+      allow delete: if false;
+      
+      // Pairing requests subcollection
+      match /pairingRequests/{requesterId} {
+        // The document owner (userId) can read all pairing requests
+        // The requester can also read their own request (to check status)
+        allow read: if request.auth != null 
+                    && (request.auth.uid == userId || request.auth.uid == requesterId);
+        
+        // Anyone authenticated can create a pairing request
+        // But the requesterId must match their auth uid
+        allow create: if request.auth != null 
+                      && request.auth.uid == requesterId
+                      && request.resource.data.requesterUid == request.auth.uid;
+        
+        // The document owner (userId) can update (accept/reject)
+        // OR the requester can update their own request (e.g., to cancel)
+        allow update: if request.auth != null 
+                      && (request.auth.uid == userId || request.auth.uid == requesterId);
+        
+        // The document owner or the requester can delete
+        allow delete: if request.auth != null 
+                      && (request.auth.uid == userId || request.auth.uid == requesterId);
+      }
+    }
+    
+    // Deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

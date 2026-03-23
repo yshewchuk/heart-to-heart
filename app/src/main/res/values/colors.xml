@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Brand Colors -->
+    <color name="coral">#FF6B6B</color>
+    <color name="coral_dark">#E85555</color>
+    <color name="coral_light">#FF8A8A</color>
+    <color name="soft_white">#FAF9F6</color>
+    
+    <!-- Category Colors -->
+    <color name="flutter_color">#FFB6C1</color>  <!-- Light Pink -->
+    <color name="nudge_color">#FFD93D</color>    <!-- Warm Yellow -->
+    <color name="heartbeat_color">#FF6B6B</color> <!-- Coral -->
+    <color name="lifeline_color">#FF3B3B</color>  <!-- Alert Red -->
+    
+    <!-- UI Colors -->
+    <color name="text_primary">#2D2D2D</color>
+    <color name="text_secondary">#6B6B6B</color>
+    <color name="background">#FAF9F6</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="divider">#E0E0E0</color>
+</resources>
