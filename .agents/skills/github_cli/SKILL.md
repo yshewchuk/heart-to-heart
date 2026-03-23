@@ -7,6 +7,40 @@ description: Use GitHub CLI (gh) in Windows PowerShell. Use when creating branch
 
 Commands for working with GitHub using the `gh` CLI in Windows PowerShell.
 
+## ⚠️ PowerShell Limitations (Important)
+
+PowerShell does **not** support:
+- `&&` or `||` as command separators — use `;` or run commands separately
+- Bash-style heredocs (`<<EOF`) — they cause parse errors
+- Multi-line strings via `-Body "$(cat <<'EOF'...)"` — this fails
+
+**For multi-line PR bodies**, write to a temp file first, then use `--body-file`:
+
+```powershell
+# Write body to a file first
+@"
+## Summary
+Description here.
+
+## Changes
+- Change 1
+"@ | Out-File -FilePath pr-body.txt -Encoding utf8
+
+# Then create PR with the file
+gh pr create --title "feat: my feature" --body-file "pr-body.txt"
+
+# Clean up
+Remove-Item pr-body.txt
+```
+
+**For chained commands**, run them as separate Shell calls:
+
+```powershell
+git add .
+git commit -m "feat: my feature"
+git push -u origin feature/my-feature
+```
+
 ## Authentication
 
 ### Check if logged in
@@ -102,26 +136,13 @@ git reset HEAD path/to/file.txt
 
 ## Pull Requests
 
-### Create PR
+### Create PR with inline body (single-line only)
 ```powershell
 gh pr create --title "feat: add feature" --body "Description here"
 ```
 
-### Create PR with body from file
-```powershell
-gh pr create --title "feat: add feature" --body "$(Get-Content pr-template.md -Raw)"
-```
-
-### Create PR with heredoc body
-```powershell
-gh pr create --title "feat: add feature" --body (@"
-## Summary
-Description here
-
-## Changes
-- Change 1
-"@)
-```
+### Create PR with multi-line body
+See the PowerShell Limitations section above for the correct approach using a temp file and `--body-file`.
 
 ### List open PRs
 ```powershell
