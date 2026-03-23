@@ -42,37 +42,65 @@ Currently `PairingRepository` stores exactly one partner. The app needs to suppo
 
 ## Architecture
 
-### Pairing ID Model
+### Pairing Instance UID Model
 
-```
-pairingId = UUID generated at acceptance time (unique per pairing instance)
-```
-
-This solves the "same user on multiple devices" problem: the same Firebase UID can appear multiple times in a user's partner list, each with a different `pairingId` and nickname.
+Each QR code contains a **fresh UUID (`instanceUid`) generated at QR creation time** — not the user's Firebase UID. This means:
+- The same user can generate unlimited unique QR codes for different pairing attempts
+- No Firestore document cleanup needed — the instance document itself enforces one-time use
+- Multiple people can simultaneously scan the same user's QR at an event without collision
 
 ### Firestore Schema
 
 ```
 users/{uid}
   fcmToken: string
-  partnerIds: string[]  // list of pairingIds this user has paired with
 
-users/{uid}/partners/{pairingId}
-  partnerUid: string          // the other user's Firebase UID
+users/{uid}/pairingInstances/{instanceUid}   ← NEW: created per QR generation
+  status: "active" | "used"      // "used" = already paired, reject reuse
+  encryptionKey: string           // Alice's encryption key for this instance
+  createdAt: timestamp
+
+users/{uid}/partners/{pairingId}   ← pairingId = instanceUid from acceptance
+  partnerUid: string
   partnerFcmToken: string
   displayName: string
   pairedAt: timestamp
-  encryptionKey: string        // our key for sending TO them
+  encryptionKey: string            // our key for sending TO them
 
-users/{uid}/pairingRequests/{pairingId}
+users/{uid}/pairingRequests/{requesterUid}
   requesterUid: string
   requesterFcmToken: string
   requesterEncryptionKey: string
-  status: "pending" | "accepted" | "rejected" | "paired"
-  paired: bool  // true = already used, reject if true
+  instanceUid: string              // which pairingInstance this targets
+  status: "pending" | "accepted" | "rejected"
 ```
 
-After acceptance, the pairing request doc is deleted (one-time use).
+### One-Time QR Enforcement
+
+When Alice generates a QR code:
+1. Create `pairingInstances/{instanceUid}` with `status: "active"`
+2. Embed `instanceUid` in QR deep link alongside her Firebase UID
+
+When Bob sends a pairing request:
+- The request targets Alice's `instanceUid`
+- Alice's app checks `pairingInstances/{instanceUid}/status == "active"` before accepting
+
+After successful pairing:
+- `pairingInstances/{instanceUid}` is updated to `status: "used"`
+- Both parties write to their `partners/{pairingId}` using `instanceUid` as the key
+
+If a third party (Mallory) tries to reuse Alice's QR:
+- Firestore lookup finds `status: "used"` → request rejected
+
+### QR Code Format
+
+```
+heart-to-heart://pair?uid=ALICE_UID&instance=INSTANCE_UID&key=KEY_A
+```
+
+- `ALICE_UID` — Alice's Firebase UID (stable identity)
+- `INSTANCE_UID` — Fresh UUID generated per QR (one-time use)
+- `KEY_A` — Alice's encryption key for this instance
 
 ### Local Storage Schema
 
@@ -104,8 +132,8 @@ Settings screen lists all partners with edit/unpair options. Unpair deletes loca
 <br>
 
 - [ ] **PR 1: Data layer redesign — models, local storage, Firestore schema**
-  - Description: Add `pairingId` to Partner model, redesign DataStore schemas to Map<pairingId, T>, update Firestore to use `users/{uid}/partners/{pairingId}` subcollection, delete pairing request docs after acceptance
-  - Est: ~5 files, ~400 lines
+  - Description: Add `pairingId`/`instanceUid` to Partner model, add `pairingInstances/{instanceUid}` Firestore subcollection for one-time QR enforcement, redesign DataStore schemas to Map<pairingId, T>, update Firestore `partners` subcollection to use instanceUid as key, generate fresh UUID per QR code
+  - Est: ~5 files, ~450 lines
   - Status: Planned
   - Dependencies: None
 
