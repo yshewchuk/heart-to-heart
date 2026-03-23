@@ -1,0 +1,51 @@
+---
+description: Check applicable skills before completing tasks
+alwaysApply: true
+---
+
+# Skill Usage and Workflow Guidelines
+
+## Always Check Applicable Skills
+
+Before completing any task, you **MUST** check if there are relevant skills available in the `.agents/skills/` directory that could help with the workflow. The available skills include:
+
+- `start_new_task` - Orchestrate high-level completion of a coding task
+- `plan_work_breakdown` - Orchestrate creation of small, well-structured pull requests
+- `document_plan` - Document a coding task in a structured markdown file
+- `start_pull_request` - Start working on a pull request by creating a feature branch
+- `implement_pull_request` - Implement changes for a pull request and write unit tests
+- `propose_pull_request` - Create a pull request for implemented changes
+- `propose_plan` - Create a pull request for a task plan document
+- `pr_summary_generation` - Generate pull request summaries
+- `github_cli` - Use GitHub CLI for GitHub operations
+- `adjust_pull_request_plan` - Break down oversized PRs into multiple smaller PRs
+
+## When to Ask the User
+
+If there is **any ambiguity** about:
+- Which skills should be used for the current task
+- Where you are in the workflow process
+- Whether a skill is relevant to the current request
+
+**Ask the user** for clarification rather than guessing.
+
+## Workflow Awareness
+
+When starting a new task or implementing changes that involve multiple steps:
+1. Identify which skills apply to your current work
+2. Follow the skill chain in order (e.g., `start_new_task` → `plan_work_breakdown` → `implement_pull_request` → `propose_pull_request`)
+3. If you are unsure of the next step in the process, ask
+
+## Skill Loading
+
+Use the Read tool to fetch a skill's full contents before following its instructions. Do not assume you know what a skill does — read and follow it exactly as instructed.
+
+## Workspace State Verification
+
+Before starting any task, **always verify the actual workspace state** rather than relying solely on system-provided context:
+
+1. **Git repo status**: Run `git status` to confirm whether this is a git repo, what branch you're on, and what changes exist. Do not assume from system context alone.
+2. **Existing work**: Check if there are uncommitted changes that may conflict with new work.
+3. **Current branch**: Confirm which branch you're on and whether it matches the task at hand.
+
+If the workspace state is unclear or unexpected, report it to the user before proceeding.
