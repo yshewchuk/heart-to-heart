@@ -144,10 +144,11 @@ Settings screen lists all accounts with partner name, nickname, and unpair optio
 
 <br>
 
-- [ ] **PR 0: Documentation baseline**
-  - Description: Audit and update existing documentation to reflect current implementation state. README "Next Steps" section lists 6 unimplemented items that are all implemented. Technical spec is outdated (references a "Next Steps" section and architecture that no longer matches). Also document that multi-partner support is in progress in the task plan. Update firestore.rules to reflect the actual schema (partners subcollection, encryptionKey field).
+- [x] **PR 0: Documentation baseline** ✅
+  - Description: Audit and update existing documentation to reflect current implementation state. README "Next Steps" section listed 6 items as unimplemented when 5 are actually implemented. Firestore.rules referenced a non-existent "partners" subcollection. Update both to match reality. Add status tracking to this plan.
   - Est: ~3 files, ~120 lines
-  - Status: Planned
+  - Status: Completed
+  - Changes: README.md Next Steps → Implemented Features; firestore.rules schema comments updated; status fields added to PRs
   - Dependencies: None
 
 <br>
@@ -176,8 +177,8 @@ Settings screen lists all accounts with partner name, nickname, and unpair optio
 
 ## Next Steps
 
-1. Review and merge this plan
-2. Implement PR 0 (documentation baseline)
+1. ~~Review and merge this plan~~ (merged — plan is active)
+2. ~~**Implement PR 0** (documentation baseline)~~ ✅
 3. Implement PR 1 (auth model)
 4. Implement PR 2 (UI layer)
 5. Implement PR 3 (README)

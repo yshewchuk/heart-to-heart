@@ -129,14 +129,18 @@ The app is designed to work with Android 14's FSI restrictions by:
 - Using `setFullScreenIntent()` for lock screen display
 - Gracefully falling back to heads-up notification if restricted
 
-## Next Steps (Not Implemented)
+## Implemented Features
 
-- [ ] QR code pairing flow
-- [ ] Firebase Cloud Functions for message delivery
-- [ ] End-to-end encryption for notes
-- [ ] Partner avatar/name customization
+- [x] QR code pairing flow
+- [x] Firebase Cloud Functions for message delivery
+- [x] End-to-end encryption for notes
+- [x] Partner avatar/name customization
+- [x] Settings screen (notification preferences)
+
+## Next Steps
+
+- [ ] Multi-partner support (multiple simultaneous pairings)
 - [ ] Delivery receipts
-- [ ] Settings screen (notification preferences)
 
 ## Permissions
 
