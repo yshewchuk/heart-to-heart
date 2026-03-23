@@ -2,116 +2,151 @@
 
 ## Overview
 
-Refactor Heart-to-Heart from a single-partner app to support up to 10 paired partners simultaneously. Each pairing is one-time (QR code cannot be reused), generates a unique encryption key, and persists independently with its own nickname, profile picture, and message history.
+Refactor Heart-to-Heart to manage multiple Firebase anonymous auth accounts on a single device — one account per paired partner. Each pairing is a self-contained user+partner unit. The Firestore schema does not change.
 
 ## Problem Statement
 
-Currently `PairingRepository` stores exactly one partner. The app needs to support multiple simultaneous pairings so users can connect with more than one person (e.g., a partner on a work phone and personal phone treated as separate pairings).
+Currently the app uses a single Firebase anonymous auth account for the entire device and supports exactly one partner. The app needs to support up to 10 simultaneous pairings — e.g., the same person pairing with "Alex (work phone)" and "Alex (personal phone)" as separate, independent pairings on the same device.
+
+## Key Insight
+
+The solution is not to change the database schema — it's to change the **auth model**: instead of one anonymous auth account per device, use **one anonymous auth account per pairing**. Each pairing on Alice's device is a separate Firebase user with its own UID, its own partner entry in Firestore, and its own encryption keys.
+
+The Firestore schema already supports this — it was designed around Firebase UIDs, not device-level identity.
 
 ## Scope
 
 ### In Scope
-- Multiple simultaneous partners (max 10)
-- Unique `pairingId` (UUID) per pairing instance — same Firebase UID can be paired multiple times as distinct entries
-- One-time QR code use: pairing request document deleted from Firestore after acceptance
-- Per-partner encryption key (new key per pairing instance)
-- Local message history keyed by `pairingId`
+- Multiple simultaneous pairings (max 10)
+- Each pairing = new Firebase anonymous auth account created at QR generation time
+- QR code contains the freshly-created anonymous UID (not the device's stable UID)
+- One-time QR use: once an anonymous account is paired, its QR code is obsolete — the account can't generate a new pairing request
+- Per-pairing message history (each Firebase user has its own messages subcollection)
 - Partner selector UI on HomeScreen (horizontal strip or dropdown)
-- "Pair with new user" button replaces single "Pair" button when ≥1 partner exists
-- Unpair flow: deletes local data and removes partner subcollection entry in Firestore
-- Cloud Functions validation: `targetPartnerUid` must be in sender's `partnerIds` list
+- "Pair with New User" button when ≥1 partner exists
+- Unpair flow: deletes the anonymous account locally, removes partner doc from Firestore
+- FCM routing: payload carries sender's anonymous UID so receiver knows which partner entry to use
 
 ### Out of Scope
 - Forward secrecy / key rotation post-pairing
 - Safety numbers / identity verification beyond physical QR exchange
-- Push notification routing changes (FCM token-based routing is already correct)
-
-## Affected Areas
-
-- `app/src/main/java/com/hearttoheart/app/data/PairingRepository.kt` — multi-partner storage, one-time pairing, per-partner keys
-- `app/src/main/java/com/hearttoheart/app/data/PartnerPreferencesRepository.kt` — keyed by `pairingId` instead of single partner
-- `app/src/main/java/com/hearttoheart/app/data/MessageHistory.kt` — messages keyed by `pairingId`
-- `app/src/main/java/com/hearttoheart/app/data/Partner.kt` — add `pairingId` field
-- `app/src/main/java/com/hearttoheart/app/data/MessageSender.kt` — target specific partner by `pairingId`
-- `app/src/main/java/com/hearttoheart/app/MainActivity.kt` — manage list of partners, selected partner state
-- `app/src/main/java/com/hearttoheart/app/ui/screens/HomeScreen.kt` — partner selector, send to selected partner
-- `app/src/main/java/com/hearttoheart/app/ui/screens/HistoryScreen.kt` — group/filter by partner
-- `app/src/main/java/com/hearttoheart/app/ui/screens/SettingsScreen.kt` — per-partner settings, unpair
-- `app/src/main/java/com/hearttoheart/app/services/HeartFCMService.kt` — route incoming messages to correct partner
-- `functions/src/index.ts` — validate `targetPartnerUid` is in sender's partner list
+- Firestore schema changes
+- Cross-pairing message threads (each pairing is independent)
 
 ## Architecture
 
-### Pairing Instance UID Model
+### Auth Model: One Anonymous Account Per Pairing
 
-Each QR code contains a **fresh UUID (`instanceUid`) generated at QR creation time** — not the user's Firebase UID. This means:
-- The same user can generate unlimited unique QR codes for different pairing attempts
-- No Firestore document cleanup needed — the instance document itself enforces one-time use
-- Multiple people can simultaneously scan the same user's QR at an event without collision
+```
+Device
+├── UserAccount #1 (Firebase Anonymous UID A)
+│   └── Paired with: Bob
+│   └── Encryption key: key_AB
+│   └── Message history: messages_A
+├── UserAccount #2 (Firebase Anonymous UID B)
+│   └── Paired with: Carol
+│   └── Encryption key: key_BC
+└── UserAccount #3 (Firebase Anonymous UID C)
+    └── Paired with: Alex (work)
+    └── Encryption key: key_AX
+```
 
-### Firestore Schema
+When the user taps "Pair with New User", the app creates a **new anonymous Firebase auth account**. The QR code embeds that new account's UID. Once that account completes pairing, it is never reused for another pairing — a future "Pair with New User" creates yet another fresh account.
+
+### QR Code Format
+
+```
+heart-to-heart://pair?uid=ANONYMOUS_UID_A&key=KEY_A
+```
+
+- `ANONYMOUS_UID_A` — Fresh Firebase anonymous UID created at QR generation time
+- `KEY_A` — Encryption key generated for this account
+
+The QR does **not** contain the device's stable UID. This means an old QR is useless to anyone who scans it later — it points to an account that has already paired and cannot initiate new pairings.
+
+### Firestore Schema (No Changes)
 
 ```
 users/{uid}
   fcmToken: string
 
-users/{uid}/pairingInstances/{instanceUid}   ← NEW: created per QR generation
-  status: "active" | "used"      // "used" = already paired, reject reuse
-  encryptionKey: string           // Alice's encryption key for this instance
-  createdAt: timestamp
-
-users/{uid}/partners/{pairingId}   ← pairingId = instanceUid from acceptance
+users/{uid}/partners/{partnerId}
   partnerUid: string
   partnerFcmToken: string
   displayName: string
   pairedAt: timestamp
-  encryptionKey: string            // our key for sending TO them
+  encryptionKey: string
 
 users/{uid}/pairingRequests/{requesterUid}
   requesterUid: string
   requesterFcmToken: string
   requesterEncryptionKey: string
-  instanceUid: string              // which pairingInstance this targets
   status: "pending" | "accepted" | "rejected"
 ```
 
+Each anonymous account has its own `partners` document. The schema is identical to today.
+
+### Local Storage Schema (DataStore)
+
+```
+USER_ACCOUNTS: Map<anonymousUid, UserAccountEntry>
+  where UserAccountEntry = { pairedPartnerUid?, pairedAt?, encryptionKey?, displayName? }
+
+SELECTED_ACCOUNT_UID: string  // which account is currently active for sending
+```
+
+Each account entry is created at QR generation time (unpaired), and updated at pairing completion (with partner info).
+
 ### One-Time QR Enforcement
 
-When Alice generates a QR code:
-1. Create `pairingInstances/{instanceUid}` with `status: "active"`
-2. Embed `instanceUid` in QR deep link alongside her Firebase UID
+When "Pair with New User" is tapped:
+1. `FirebaseAuth.signInAnonymously()` → new account with UID `A`
+2. `PairingRepository.sendPairingRequest(A, targetUserId, key_A)`
+3. Account `A` is saved to DataStore as "pending"
 
-When Bob sends a pairing request:
-- The request targets Alice's `instanceUid`
-- Alice's app checks `pairingInstances/{instanceUid}/status == "active"` before accepting
+When a pairing request for account `A` is accepted:
+1. `PairingRepository.completePairing(A, partner)` → saves partner info to account `A`'s local entry
+2. Account `A` is now "paired"
 
-After successful pairing:
-- `pairingInstances/{instanceUid}` is updated to `status: "used"`
-- Both parties write to their `partners/{pairingId}` using `instanceUid` as the key
+If anyone re-scans the old QR for account `A`:
+- The QR points to account `A`'s UID
+- But account `A` already has a partner — `sendPairingRequest` for an already-paired account should be rejected (return error or no-op)
+- The old QR is inert
 
-If a third party (Mallory) tries to reuse Alice's QR:
-- Firestore lookup finds `status: "used"` → request rejected
+### Message Sending
 
-### QR Code Format
+When the user selects a partner from the UI and sends:
+1. Look up the active `UserAccount` for that partner
+2. Call `MessageSender.sendMessage(account, partner, message)` using that account's UID and encryption key
+3. The Cloud Function receives the message with `senderUid = account.UID`
 
-```
-heart-to-heart://pair?uid=ALICE_UID&instance=INSTANCE_UID&key=KEY_A
-```
+### FCM Routing (HeartFCMService)
 
-- `ALICE_UID` — Alice's Firebase UID (stable identity)
-- `INSTANCE_UID` — Fresh UUID generated per QR (one-time use)
-- `KEY_A` — Alice's encryption key for this instance
+Incoming FCM payload already contains `senderUid`. The app:
+1. Looks up which local account matches `senderUid`
+2. Routes to the correct partner context (nickname, avatar, message history)
 
-### Local Storage Schema
+### Partner Selector UI
 
-DataStore keys are namespaced by `pairingId`:
+- Horizontal strip of avatars at top of HomeScreen
+- Tapping an avatar selects that account → all send actions target that partner
+- Selected account highlighted
+- Badge or label shows partner nickname
 
-```
-PARTNERS: Map<pairingId, PartnerEntry>
-MY_DECRYPTION_KEYS: Map<pairingId, string>   // pairingId → my decryption key
-PARTNER_PREFS: Map<pairingId, PartnerPrefs>
-MESSAGES: Map<pairingId, List<StoredMessage>>
-```
+## Affected Areas
+
+- `app/src/main/java/com/hearttoheart/app/data/PairingRepository.kt` — create new anonymous account per pairing, manage per-account pairing state, check if account already paired
+- `app/src/main/java/com/hearttoheart/app/data/PartnerPreferencesRepository.kt` — keyed by anonymous UID
+- `app/src/main/java/com/hearttoheart/app/data/MessageHistory.kt` — keyed by anonymous UID (each account has its own messages)
+- `app/src/main/java/com/hearttoheart/app/data/MessageSender.kt` — send using specific account UID
+- `app/src/main/java/com/hearttoheart/app/MainActivity.kt` — manage list of accounts, selected account state
+- `app/src/main/java/com/hearttoheart/app/ui/screens/HomeScreen.kt` — partner selector strip
+- `app/src/main/java/com/hearttoheart/app/ui/screens/HistoryScreen.kt` — filter by selected account
+- `app/src/main/java/com/hearttoheart/app/ui/screens/SettingsScreen.kt` — per-account settings, unpair
+- `app/src/main/java/com/hearttoheart/app/ui/screens/ShowQRScreen.kt` — generate new anonymous account at QR creation time
+- `app/src/main/java/com/hearttoheart/app/ui/screens/ScanQRScreen.kt` — send pairing request from the anonymous account created at QR scan time
+- `app/src/main/java/com/hearttoheart/app/services/HeartFCMService.kt` — route incoming messages to correct account/partner
+- `functions/src/index.ts` — no changes needed (already validates sender UID matches auth)
 
 ## User Experience
 
@@ -119,53 +154,44 @@ MESSAGES: Map<pairingId, List<StoredMessage>>
 HomeScreen shows "Get Started" prompt. Pair button reads "Pair with Partner".
 
 ### ≥1 Partner
-HomeScreen shows horizontal partner selector strip (avatars/names). Pair button reads "Pair with New User". QR button is hidden when 10 partners reached.
+HomeScreen shows horizontal partner selector strip. Pair button reads "Pair with New User". Button hidden when 10 partners reached.
 
 ### Sending a Message
-User selects target partner from selector → selects category → optionally adds note → sends. Encryption uses that partner's specific key.
+Select target partner from strip → select category → optionally add note → send. Each partner has their own encryption key and message history.
 
 ### Unpairing
-Settings screen lists all partners with edit/unpair options. Unpair deletes local data + Firestore partner doc.
+Settings screen lists all accounts with partner name, nickname, and unpair option. Unpair deletes local account data (including all its messages).
 
 ## Pull Requests
 
 <br>
 
-- [ ] **PR 1: Data layer redesign — models, local storage, Firestore schema**
-  - Description: Add `pairingId`/`instanceUid` to Partner model, add `pairingInstances/{instanceUid}` Firestore subcollection for one-time QR enforcement, redesign DataStore schemas to Map<pairingId, T>, update Firestore `partners` subcollection to use instanceUid as key, generate fresh UUID per QR code
-  - Est: ~5 files, ~450 lines
+- [ ] **PR 1: Auth model — new anonymous account per pairing**
+  - Description: Change PairingRepository to create a fresh Firebase anonymous account at QR generation time, not reuse a device-level account. QR contains the new account's UID. Save accounts in DataStore as a Map keyed by anonymous UID. Add check to reject pairing requests from already-paired accounts. Update ShowQRScreen and ScanQRScreen to use the new account-based flow.
+  - Est: ~5 files, ~350 lines
   - Status: Planned
   - Dependencies: None
 
 <br>
 
 - [ ] **PR 2: Multi-partner UI — HomeScreen selector, HistoryScreen, SettingsScreen**
-  - Description: Add partner selector component to HomeScreen, update HistoryScreen to show per-partner history, add per-partner settings and unpair flow to SettingsScreen, update MainActivity to manage partner list
+  - Description: Add partner/account selector strip to HomeScreen. Update MainActivity to hold selected account UID state and list of accounts. Update HistoryScreen to show messages for selected account. Add per-account settings and unpair flow to SettingsScreen. Update HeartFCMService to route incoming messages to the correct account.
   - Est: ~5 files, ~500 lines
   - Status: Planned
   - Dependencies: PR 1
 
 <br>
 
-- [ ] **PR 3: Cloud Functions and FCM routing updates**
-  - Description: Add `targetPartnerUid` to sendHeart request, validate sender has this partnerId in their list, route incoming FCM to correct pairingId in HeartFCMService
-  - Est: ~2 files, ~100 lines
-  - Status: Planned
-  - Dependencies: PR 1
-
-<br>
-
-- [ ] **PR 4: README and cleanup**
-  - Description: Update README to reflect new multi-partner architecture, add architecture diagram
+- [ ] **PR 3: README and cleanup**
+  - Description: Update README to reflect new multi-partner architecture. Update "Next Steps" checklist to reflect completed features.
   - Est: ~1 file, ~80 lines
   - Status: Planned
-  - Dependencies: PRs 1–3
+  - Dependencies: PRs 1–2
 
 ## Next Steps
 
 1. Review and merge this plan
-2. Implement PR 1 (data layer)
+2. Implement PR 1 (auth model)
 3. Implement PR 2 (UI layer)
-4. Implement PR 3 (Cloud Functions + FCM routing)
-5. Implement PR 4 (README)
-6. Mark each PR complete in this document
+4. Implement PR 3 (README)
+5. Mark each PR complete in this document
