@@ -1,0 +1,75 @@
+name: Next Task Agent
+
+on:
+  # Trigger when a PR is merged
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+  # Trigger on direct push to main
+  push:
+    branches:
+      - main
+
+jobs:
+  trigger-cursor-agent:
+    name: Trigger Cursor Cloud Agent
+    # Only run if it's a direct push to main OR a merged pull request
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Trigger Cursor Cloud Agent
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: |
+          # Use the repository name to form the full URL
+          REPO_URL="https://github.com/${{ github.repository }}"
+          # Use the commit SHA for the current reference
+          REF_SHA="${{ github.sha }}"
+          
+          echo "Triggering Cursor Agent for ${REPO_URL} at commit ${REF_SHA}"
+          
+          # Payload format per Cursor Cloud Agents API v0
+          JSON_PAYLOAD=$(jq -n \
+            --arg repo "$REPO_URL" \
+            --arg ref "$REF_SHA" \
+            --arg prompt "Review the files under the \`tasks/\` directory to determine the current state of tasks. Identify the next logical step that can be performed, implement the necessary code changes, and update the task checklist in the markdown file to mark it as complete." \
+            '{
+              "prompt": {
+                "text": $prompt
+              },
+              "model": "default",
+              "source": {
+                "repository": $repo,
+                "ref": $ref
+              },
+              "target": {
+                "autoCreatePr": true
+              }
+            }'
+          )
+          
+          # Trigger the agent using basic auth with the API key as the username
+          # We use '-u YOUR_API_KEY:' as required by the Cursor API
+          HTTP_RESPONSE=$(curl --silent --show-error --write-out "HTTPSTATUS:%{http_code}" \
+            --request POST \
+            --url https://api.cursor.com/v0/agents \
+            -u "${CURSOR_API_KEY}:" \
+            --header 'Content-Type: application/json' \
+            --data "$JSON_PAYLOAD")
+
+          # Extract status and body
+          HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed -E 's/HTTPSTATUS\:[0-9]{3}$//')
+          HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tr -d '\n' | sed -E 's/.*HTTPSTATUS:([0-9]{3})$/\1/')
+
+          if [ "$HTTP_STATUS" -ne 200 ] && [ "$HTTP_STATUS" -ne 201 ]; then
+            echo "Error: Failed to trigger agent (Status: $HTTP_STATUS)"
+            echo "Response: $HTTP_BODY"
+            exit 1
+          fi
+
+          echo "Successfully triggered agent!"
+          echo "$HTTP_BODY" | jq .
