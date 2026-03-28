@@ -25,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -51,7 +50,6 @@ fun ScanQRScreen(
     onPairingComplete: () -> Unit
 ) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
     val repository = remember { PairingRepository(context) }
     val scope = rememberCoroutineScope()
     
@@ -81,7 +79,14 @@ fun ScanQRScreen(
         if (!hasCameraPermission) {
             permissionLauncher.launch(Manifest.permission.CAMERA)
         }
-        // Initialize user document
+        // Ensure this pairing attempt uses a fresh anonymous account.
+        val freshAccount = repository.createFreshAnonymousAccount()
+        if (freshAccount.isFailure) {
+            error = freshAccount.exceptionOrNull()?.message ?: "Failed to start pairing"
+            return@LaunchedEffect
+        }
+
+        // Initialize user document for this new account.
         repository.initializeUserDocument()
     }
     

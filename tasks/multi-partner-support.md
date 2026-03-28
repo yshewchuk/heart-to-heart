@@ -153,10 +153,10 @@ Settings screen lists all accounts with partner name, nickname, and unpair optio
 
 <br>
 
-- [ ] **PR 1: Auth model — new anonymous account per pairing**
+- [x] **PR 1: Auth model — new anonymous account per pairing** ✅
   - Description: Change PairingRepository to create a fresh Firebase anonymous account at QR generation time, not reuse a device-level account. QR contains the new account's UID. Save accounts in DataStore as a Map keyed by anonymous UID. Add check to reject pairing requests from already-paired accounts. Update ShowQRScreen and ScanQRScreen to use the new account-based flow.
   - Est: ~5 files, ~350 lines
-  - Status: In Progress
+  - Status: Completed
   - Dependencies: None
 
 <br>
@@ -179,7 +179,7 @@ Settings screen lists all accounts with partner name, nickname, and unpair optio
 
 1. ~~Review and merge this plan~~ (merged — plan is active)
 2. ~~**Implement PR 0** (documentation baseline)~~ ✅
-3. Implement PR 1 (auth model)
+3. ~~Implement PR 1 (auth model)~~ ✅
 4. Implement PR 2 (UI layer)
 5. Implement PR 3 (README)
 6. Mark each PR complete in this document
