@@ -17,7 +17,7 @@ jobs:
       - name: Get PR Details
         id: pr-details
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ACTION_GITHUB_TOKEN }}
         run: |
           PR_NUMBER="${{ github.event.issue.number }}"
           
