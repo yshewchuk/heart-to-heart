@@ -8,9 +8,18 @@ on:
   pull_request_review:
     types: [submitted]
 
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
 jobs:
   debug-trigger:
     name: Debug Trigger Conditions
+    if: |
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && contains(github.event.comment.body, '/iterate')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '/iterate')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '/iterate'))
     runs-on: ubuntu-latest
     steps:
       - name: Print Event Information
@@ -19,15 +28,15 @@ jobs:
           echo "Action: ${{ github.event.action }}"
           echo "Is Issue PR: ${{ github.event.issue.pull_request != null }}"
           echo "Is PR Object: ${{ github.event.pull_request != null }}"
-          echo "Comment Body: ${{ github.event.comment.body || github.event.review.body }}"
+          echo "Comment Body: ${{ github.event.comment.body || github.event.review.body || '' }}"
           
   trigger-cursor-agent:
     name: Trigger Cursor Cloud Agent for PR Iteration
     # Run if it's an issue comment with /iterate, a review comment with /iterate, or a review submission with /iterate
     if: |
-      (github.event.issue.pull_request != null && contains(github.event.comment.body, '/iterate')) ||
-      (github.event.pull_request != null && contains(github.event.comment.body, '/iterate')) ||
-      (github.event.pull_request != null && contains(github.event.review.body, '/iterate'))
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && contains(github.event.comment.body, '/iterate')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '/iterate')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '/iterate'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -36,7 +45,7 @@ jobs:
       - name: Get PR Details
         id: pr-details
         env:
-          GH_TOKEN: ${{ secrets.ACTION_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           # Get PR number from issue_comment or pull_request_review_comment/pull_request_review
           PR_NUMBER="${{ github.event.issue.number || github.event.pull_request.number }}"
