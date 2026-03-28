@@ -1,12 +1,6 @@
 name: Next Task Agent
 
 on:
-  # Trigger when a PR is merged
-  pull_request:
-    types: [closed]
-    branches:
-      - main
-  # Trigger on direct push to main
   push:
     branches:
       - main
@@ -14,8 +8,8 @@ on:
 jobs:
   trigger-cursor-agent:
     name: Trigger Cursor Cloud Agent
-    # Only run if it's a direct push to main OR a merged pull request
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    # Only run if it's a push to main
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -52,12 +46,11 @@ jobs:
             }'
           )
           
-          # Trigger the agent using basic auth with the API key as the username
-          # We use '-u YOUR_API_KEY:' as required by the Cursor API
+          # We use Bearer authentication as required by the Cursor API
           HTTP_RESPONSE=$(curl --silent --show-error --write-out "HTTPSTATUS:%{http_code}" \
             --request POST \
             --url https://api.cursor.com/v0/agents \
-            -u "${CURSOR_AGENT_API_KEY}:" \
+            --header "Authorization: Bearer ${CURSOR_API_KEY}" \
             --header 'Content-Type: application/json' \
             --data "$JSON_PAYLOAD")
 
