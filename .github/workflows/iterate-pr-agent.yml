@@ -1,0 +1,111 @@
+name: Iterate on PR Feedback
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  trigger-cursor-agent:
+    name: Trigger Cursor Cloud Agent for PR Iteration
+    # Only run if the comment is on a PR and contains "/iterate"
+    if: github.event.issue.pull_request && contains(github.event.comment.body, '/iterate')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get PR Details
+        id: pr-details
+        env:
+          GH_TOKEN: ${{ secrets.ACTION_GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER="${{ github.event.issue.number }}"
+          
+          # Fetch PR data to get the branch name and base branch
+          PR_DATA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER")
+          PR_BRANCH=$(echo "$PR_DATA" | jq -r .head.ref)
+          BASE_BRANCH=$(echo "$PR_DATA" | jq -r .base.ref)
+          PR_URL=$(echo "$PR_DATA" | jq -r .html_url)
+          
+          # Output for next steps
+          echo "PR_BRANCH=$PR_BRANCH" >> $GITHUB_OUTPUT
+          echo "BASE_BRANCH=$BASE_BRANCH" >> $GITHUB_OUTPUT
+          echo "PR_URL=$PR_URL" >> $GITHUB_OUTPUT
+          
+          # Fetch PR comments
+          COMMENTS=$(gh api "repos/${{ github.repository }}/issues/$PR_NUMBER/comments" | jq -r '.[].body' | paste -sd "\n\n" -)
+          
+          # Fetch PR review comments (code comments)
+          REVIEW_COMMENTS=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER/comments" | jq -r '.[].body' | paste -sd "\n\n" -)
+          
+          # Fetch PR commits
+          COMMITS=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER/commits" | jq -r '.[].commit.message' | paste -sd "\n" -)
+          
+          # Combine feedback into a structured prompt
+          echo "FEEDBACK<<EOF" >> $GITHUB_OUTPUT
+          echo "The user has requested to iterate on this Pull Request based on the feedback." >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "Pull Request Base Branch: $BASE_BRANCH" >> $GITHUB_OUTPUT
+          echo "Pull Request Target Branch: $PR_BRANCH" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "Commits in this PR:" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "Issue Comments:" >> $GITHUB_OUTPUT
+          echo "$COMMENTS" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "Code Review Comments:" >> $GITHUB_OUTPUT
+          echo "$REVIEW_COMMENTS" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "Please review the feedback provided in the comments and implement the requested changes. Since the target PR URL has been provided, make sure to commit and push the changes directly to the existing PR branch ($PR_BRANCH)." >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Trigger Cursor Cloud Agent
+        env:
+          CURSOR_AGENT_API_KEY: ${{ secrets.CURSOR_AGENT_API_KEY }}
+        run: |
+          # Escape the feedback and PR URL from the previous step outputs
+          PR_URL="${{ steps.pr-details.outputs.PR_URL }}"
+          FEEDBACK="${{ steps.pr-details.outputs.FEEDBACK }}"
+          
+          # Payload format per Cursor Cloud Agents API v0
+          # Note: When source.prUrl is provided, it automatically handles pushing to the PR's branch
+          # target.autoBranch is true by default, meaning it would create a new branch.
+          # We set autoBranch to false so it pushes to the existing PR branch.
+          JSON_PAYLOAD=$(jq -n \
+            --arg pr_url "$PR_URL" \
+            --arg prompt "$FEEDBACK" \
+            '{
+              "prompt": {
+                "text": $prompt
+              },
+              "model": "default",
+              "source": {
+                "prUrl": $pr_url
+              },
+              "target": {
+                "autoBranch": false
+              }
+            }'
+          )
+          
+          # We use Bearer authentication as required by the Cursor API
+          HTTP_RESPONSE=$(curl --silent --show-error --write-out "HTTPSTATUS:%{http_code}" \
+            --request POST \
+            --url https://api.cursor.com/v0/agents \
+            --header "Authorization: Bearer ${CURSOR_AGENT_API_KEY}" \
+            --header 'Content-Type: application/json' \
+            --data "$JSON_PAYLOAD")
+
+          # Extract status and body
+          HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed -E 's/HTTPSTATUS\:[0-9]{3}$//')
+          HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tr -d '\n' | sed -E 's/.*HTTPSTATUS:([0-9]{3})$/\1/')
+
+          if [ "$HTTP_STATUS" -ne 200 ] && [ "$HTTP_STATUS" -ne 201 ]; then
+            echo "Error: Failed to trigger agent (Status: $HTTP_STATUS)"
+            echo "Response: $HTTP_BODY"
+            exit 1
+          fi
+
+          echo "Successfully triggered agent!"
+          echo "$HTTP_BODY" | jq .
