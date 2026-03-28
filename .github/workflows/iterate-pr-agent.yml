@@ -42,28 +42,23 @@ jobs:
           COMMITS=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER/commits" | jq -r '.[].commit.message' | paste -sd "\n" -)
           
           # Combine feedback into a structured prompt
-          COMBINED_FEEDBACK="The user has requested to iterate on this Pull Request based on the feedback.
-
-Pull Request Base Branch: $BASE_BRANCH
-Pull Request Target Branch: $PR_BRANCH
-
-Commits in this PR:
-$COMMITS
-
-Issue Comments:
-$COMMENTS
-
-Code Review Comments:
-$REVIEW_COMMENTS
-
-Please review the feedback provided in the comments and implement the requested changes. Since the target PR URL has been provided, make sure to commit and push the changes directly to the existing PR branch ($PR_BRANCH)."
-          
-          # Set as multi-line output
-          {
-            echo 'FEEDBACK<<EOF'
-            echo "$COMBINED_FEEDBACK"
-            echo 'EOF'
-          } >> $GITHUB_OUTPUT
+          echo "FEEDBACK<<EOF" >> $GITHUB_OUTPUT
+          echo "The user has requested to iterate on this Pull Request based on the feedback." >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "Pull Request Base Branch: $BASE_BRANCH" >> $GITHUB_OUTPUT
+          echo "Pull Request Target Branch: $PR_BRANCH" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "Commits in this PR:" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "Issue Comments:" >> $GITHUB_OUTPUT
+          echo "$COMMENTS" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "Code Review Comments:" >> $GITHUB_OUTPUT
+          echo "$REVIEW_COMMENTS" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "Please review the feedback provided in the comments and implement the requested changes. Since the target PR URL has been provided, make sure to commit and push the changes directly to the existing PR branch ($PR_BRANCH)." >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Trigger Cursor Cloud Agent
         env:
