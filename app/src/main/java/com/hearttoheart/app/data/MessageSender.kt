@@ -6,15 +6,17 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.functions.ktx.functions
 import com.google.firebase.ktx.Firebase
+import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.tasks.await
 
 /**
  * Handles sending heart messages to partners via Firebase Cloud Functions.
  */
 class MessageSender(private val context: Context? = null) {
-    
-    private val functions: FirebaseFunctions = Firebase.functions
-    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
+
+    private val pairingRepository: PairingRepository? = context?.let { PairingRepository(it) }
+    private val defaultFunctions: FirebaseFunctions = Firebase.functions
+    private val defaultAuth: FirebaseAuth = FirebaseAuth.getInstance()
     private val messageHistory: MessageHistory? = context?.let { MessageHistory(it) }
     
     companion object {
@@ -29,12 +31,25 @@ class MessageSender(private val context: Context? = null) {
      * @return Result indicating success or failure
      */
     suspend fun sendMessage(partner: Partner, message: HeartMessage): Result<String> {
-        val currentUser = auth.currentUser
+        val currentUser = defaultAuth.currentUser
         if (currentUser == null) {
             Log.e(TAG, "Cannot send message: not authenticated")
             return Result.failure(Exception("Not authenticated"))
         }
-        
+
+        // Prefer using the currently-selected pairing account (multi-partner model).
+        val functions: FirebaseFunctions = try {
+            val activeUid = pairingRepository?.getSelectedAccountUid()
+            if (activeUid.isNullOrBlank()) {
+                defaultFunctions
+            } else {
+                val app = pairingRepository.getOrInitFirebaseAppForAccountUid(activeUid)
+                Firebase.functions(app)
+            }
+        } catch (_: Exception) {
+            defaultFunctions
+        }
+
         Log.d(TAG, "Sending ${message.category.name} to partner ${partner.uid}")
         
         // Encrypt the note if we have an encryption key
@@ -55,7 +70,7 @@ class MessageSender(private val context: Context? = null) {
             "targetFcmToken" to partner.fcmToken,
             "category" to message.category.name,
             "note" to noteToSend,
-            "senderUid" to currentUser.uid,
+            "senderUid" to (pairingRepository?.getSelectedAccountUid() ?: currentUser.uid),
             "encrypted" to (partner.encryptionKey != null && message.note.isNotEmpty())
         )
         

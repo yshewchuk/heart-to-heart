@@ -69,6 +69,7 @@ fun ScanQRScreen(
     var isSendingRequest by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var pairingStatus by remember { mutableStateOf<PairingStatus?>(null) }
+    var myPairingAccountUid by remember { mutableStateOf<String?>(null) }
     
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -81,20 +82,26 @@ fun ScanQRScreen(
         if (!hasCameraPermission) {
             permissionLauncher.launch(Manifest.permission.CAMERA)
         }
-        // Initialize user document
-        repository.initializeUserDocument()
+        // For multi-partner support: create a fresh anonymous account for this pairing attempt.
+        val created = repository.createNewAccountForPairing()
+        if (created.isSuccess) {
+            myPairingAccountUid = created.getOrNull()?.anonymousUid
+            repository.initializeUserDocument()
+        } else {
+            error = created.exceptionOrNull()?.message ?: "Failed to create pairing account"
+        }
     }
     
     // Listen for pairing status when we've sent a request
-    LaunchedEffect(scannedUserId) {
-        if (scannedUserId == null) return@LaunchedEffect
-        
-        repository.observeMyRequestStatus(scannedUserId!!).collect { status ->
+    LaunchedEffect(scannedUserId, myPairingAccountUid) {
+        if (scannedUserId == null || myPairingAccountUid == null) return@LaunchedEffect
+
+        repository.observeMyRequestStatusForAccount(myPairingAccountUid!!, scannedUserId!!).collect { status ->
             pairingStatus = status
             
             if (status == PairingStatus.Accepted) {
                 // Complete pairing
-                val result = repository.completePairing(scannedUserId!!)
+                val result = repository.completePairingForAccount(myPairingAccountUid!!, scannedUserId!!)
                 if (result.isSuccess) {
                     onPairingComplete()
                 } else {
@@ -214,6 +221,7 @@ fun ScanQRScreen(
                                     scannedUserId = null
                                     scannedEncryptionKey = null
                                     pairingStatus = null
+                                    myPairingAccountUid = null
                                 }) {
                                     Text("Try Again")
                                 }
@@ -344,12 +352,18 @@ fun ScanQRScreen(
                                 isSendingRequest = true
                                 
                                 scope.launch {
-                                    // Pass their encryption key and our generated verification code
-                                    val result = repository.sendPairingRequest(
-                                        qrData.userId, 
-                                        qrData.encryptionKey,
-                                        generatedCode
-                                    )
+                                    val myUid = myPairingAccountUid
+                                    val result = if (myUid == null) {
+                                        Result.failure(Exception("Pairing account not ready"))
+                                    } else {
+                                        // Pass their encryption key and our generated verification code
+                                        repository.sendPairingRequestFromAccount(
+                                            myUid,
+                                            qrData.userId,
+                                            qrData.encryptionKey,
+                                            generatedCode
+                                        )
+                                    }
                                     isSendingRequest = false
                                     
                                     if (result.isFailure) {
@@ -357,6 +371,7 @@ fun ScanQRScreen(
                                         scannedUserId = null
                                         scannedEncryptionKey = null
                                         scannedVerificationCode = null
+                                        myPairingAccountUid = null
                                     }
                                 }
                             } else {

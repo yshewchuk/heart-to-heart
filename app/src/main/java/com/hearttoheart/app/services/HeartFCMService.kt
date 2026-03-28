@@ -57,7 +57,7 @@ class HeartFCMService : FirebaseMessagingService() {
             // Decrypt note if encrypted
             if (isEncrypted && note.isNotEmpty()) {
                 try {
-                    val decryptionKey = pairingRepository.getMyDecryptionKey().first()
+                    val decryptionKey = pairingRepository.getMyDecryptionKeyForSender(senderUid)
                     if (decryptionKey != null) {
                         val decrypted = EncryptionHelper.decrypt(note, decryptionKey)
                         Log.d(TAG, "Note decrypted successfully")

@@ -66,39 +66,40 @@ fun ShowQRScreen(
         try {
             Log.d(TAG, "Starting QR screen initialization...")
             
-            // Wait a moment for Firebase Auth to be ready
-            var attempts = 0
-            while (repository.getCurrentUserId() == null && attempts < 10) {
-                Log.d(TAG, "Waiting for auth... attempt $attempts")
-                delay(500)
-                attempts++
+            // Each pairing uses a fresh anonymous account (one-time QR).
+            val accountResult = repository.createNewAccountForPairing()
+            if (accountResult.isFailure) {
+                error = accountResult.exceptionOrNull()?.message ?: "Failed to create pairing account"
+                isLoading = false
+                return@LaunchedEffect
             }
-            
-            // Get current user ID
-            userId = repository.getCurrentUserId()
-            Log.d(TAG, "User ID: $userId")
-            
-            if (userId != null) {
+
+            val accountUid = accountResult.getOrNull()?.anonymousUid
+            userId = accountUid
+            Log.d(TAG, "Pairing account UID: $userId")
+
+            if (accountUid != null) {
                 // Try to initialize user document in Firestore
-                val initResult = repository.initializeUserDocument()
+                val initResult = repository.initializeUserDocumentForUser(accountUid)
                 if (initResult.isFailure) {
                     Log.w(TAG, "Failed to init user doc: ${initResult.exceptionOrNull()?.message}")
                     // Continue anyway - we can still show QR code
                 }
-                
-                // Generate encryption key for E2E encryption
+
+                // Generate encryption key for E2E encryption (partner uses this to encrypt messages TO us)
                 myEncryptionKey = EncryptionHelper.generateKey()
-                Log.d(TAG, "Generated encryption key")
-                
+                repository.saveMyDecryptionKeyForAccount(accountUid, myEncryptionKey!!)
+                Log.d(TAG, "Generated encryption key for pairing account")
+
                 // Generate QR code with deep link including encryption key
-                val deepLink = "heart-to-heart://pair?uid=$userId&key=$myEncryptionKey"
-                Log.d(TAG, "Generating QR for: heart-to-heart://pair?uid=$userId&key=<hidden>")
+                val deepLink = "heart-to-heart://pair?uid=$accountUid&key=$myEncryptionKey"
+                Log.d(TAG, "Generating QR for: heart-to-heart://pair?uid=$accountUid&key=<hidden>")
                 qrBitmap = generateQRCode(deepLink, 512)
                 Log.d(TAG, "QR bitmap generated: ${qrBitmap != null}")
                 isLoading = false
             } else {
-                Log.e(TAG, "User not signed in after waiting")
-                error = "Not signed in. Please restart the app."
+                Log.e(TAG, "Failed to create pairing account UID")
+                error = "Could not create pairing account. Please try again."
                 isLoading = false
             }
         } catch (e: Exception) {
@@ -112,7 +113,7 @@ fun ShowQRScreen(
     LaunchedEffect(userId) {
         if (userId == null) return@LaunchedEffect
         
-        repository.observePairingRequests().collect { requests ->
+        repository.observePairingRequestsForUser(userId!!).collect { requests ->
             // Show the most recent pending request
             incomingRequest = requests.maxByOrNull { it.requestedAt }
         }
@@ -336,12 +337,14 @@ fun ShowQRScreen(
                                             onClick = {
                                                 scope.launch {
                                                     isAccepting = true
-                                                    // Save our own key for decrypting received messages
-                                                    if (myEncryptionKey != null) {
-                                                        repository.saveMyDecryptionKey(myEncryptionKey!!)
+                                                    val accountUid = userId
+                                                    if (accountUid == null) {
+                                                        error = "Missing pairing account"
+                                                        isAccepting = false
+                                                        return@launch
                                                     }
                                                     // Pass our encryption key so they can send encrypted messages to us
-                                                    val result = repository.acceptPairingRequest(request, myEncryptionKey)
+                                                    val result = repository.acceptPairingRequestForAccount(accountUid, request, myEncryptionKey)
                                                     isAccepting = false
                                                     if (result.isSuccess) {
                                                         onPairingComplete()
