@@ -1,14 +1,19 @@
 name: Iterate on PR Feedback
 
 on:
-  issue_comment:
-    types: [created]
+  pull_request_review_comment:
+    types: [created, edited]
 
-jobs:
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:          
   trigger-cursor-agent:
     name: Trigger Cursor Cloud Agent for PR Iteration
-    # Only run if the comment is on a PR and contains "/iterate"
-    if: github.event.issue.pull_request && contains(github.event.comment.body, '/iterate')
+    # Only run if the review comment contains "/iterate"
+    if: github.event.pull_request != null && contains(github.event.comment.body, '/iterate')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -17,9 +22,10 @@ jobs:
       - name: Get PR Details
         id: pr-details
         env:
-          GH_TOKEN: ${{ secrets.ACTION_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          PR_NUMBER="${{ github.event.issue.number }}"
+          # Get PR number from the pull_request_review_comment event
+          PR_NUMBER="${{ github.event.pull_request.number }}"
           
           # Fetch PR data to get the branch name and base branch
           PR_DATA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER")
