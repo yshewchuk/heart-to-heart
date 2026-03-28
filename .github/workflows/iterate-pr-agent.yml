@@ -73,15 +73,15 @@ jobs:
           FEEDBACK: ${{ steps.pr-details.outputs.FEEDBACK }}
         run: |
           # The feedback is multi-line and may contain code/commands, so we use an environment variable
-          # instead of string interpolation to prevent bash from trying to evaluate it
+          # instead of string interpolation to prevent bash from trying to evaluate it.
+          # We access the environment variable securely in jq via the "env.FEEDBACK" property.
           
           # Payload format per Cursor Cloud Agents API v0
           JSON_PAYLOAD=$(jq -n \
             --arg pr_url "$PR_URL" \
-            --env FEEDBACK \
             '{
               "prompt": {
-                "text": $FEEDBACK
+                "text": env.FEEDBACK
               },
               "model": "default",
               "source": {
