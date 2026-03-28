@@ -1,10 +1,24 @@
 name: Next Task Agent
 
+on:
+  # Temporarily disabled for pushes to `main`.
+  #
+  # To re-enable:
+  # 1) Uncomment the `push` trigger below
+  # 2) Remove this comment block (optional)
+  workflow_dispatch:
+
+  # push:
+  #   branches:
+  #     - main
+
 jobs:
   trigger-cursor-agent:
     name: Trigger Cursor Cloud Agent
-    # Only run if it's a push to main
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Safety check: keep this job scoped to the `main` branch, and allow either:
+    # - `push` (when re-enabled), or
+    # - manual runs via `workflow_dispatch`.
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
