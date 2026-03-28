@@ -65,12 +65,11 @@ jobs:
           TRIGGER_DIFF_HUNK_RAW="${{ github.event.comment.diff_hunk }}"
           TRIGGER_ACTOR="${{ github.actor }}"
 
-          # Escape any accidental output delimiters in the triggering comment.
-          TRIGGER_BODY=$(printf '%s' "$TRIGGER_BODY_RAW" | sed 's/EOF/EO_F/g')
-          TRIGGER_DIFF_HUNK=$(printf '%s' "$TRIGGER_DIFF_HUNK_RAW" | sed 's/EOF/EO_F/g')
+          # Use a unique delimiter for multi-line output so PR content/comments can't accidentally terminate the block.
+          FEEDBACK_DELIM="FEEDBACK_$(date +%s)_$RANDOM"
           
           # Combine feedback into a structured prompt
-          echo "FEEDBACK<<EOF" >> $GITHUB_OUTPUT
+          echo "FEEDBACK<<$FEEDBACK_DELIM" >> $GITHUB_OUTPUT
           echo "The user has requested to iterate on this Pull Request based on the feedback." >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
           echo "Pull Request Base Branch: $BASE_BRANCH" >> $GITHUB_OUTPUT
@@ -85,10 +84,10 @@ jobs:
           echo "\`\`\`diff" >> $GITHUB_OUTPUT
           echo "--- a/$TRIGGER_PATH" >> $GITHUB_OUTPUT
           echo "+++ b/$TRIGGER_PATH" >> $GITHUB_OUTPUT
-          echo "$TRIGGER_DIFF_HUNK" >> $GITHUB_OUTPUT
+          echo "$TRIGGER_DIFF_HUNK_RAW" >> $GITHUB_OUTPUT
           echo "========== Comment on $TRIGGER_PATH${TRIGGER_LINE:+ (line $TRIGGER_LINE)} ==========" >> $GITHUB_OUTPUT
           echo "Author: $TRIGGER_ACTOR" >> $GITHUB_OUTPUT
-          echo "$TRIGGER_BODY" >> $GITHUB_OUTPUT
+          echo "$TRIGGER_BODY_RAW" >> $GITHUB_OUTPUT
           echo "========== End comment ==========" >> $GITHUB_OUTPUT
           echo "\`\`\`" >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
@@ -99,7 +98,7 @@ jobs:
           echo "$REVIEW_COMMENTS" >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
           echo "Please review the feedback provided in the comments and implement the requested changes. Since the target PR URL has been provided, make sure to commit and push the changes directly to the existing PR branch ($PR_BRANCH)." >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "$FEEDBACK_DELIM" >> $GITHUB_OUTPUT
 
       - name: Trigger Cursor Cloud Agent
         env:
