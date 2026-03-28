@@ -12,8 +12,8 @@ permissions:
 jobs:          
   trigger-cursor-agent:
     name: Trigger Cursor Cloud Agent for PR Iteration
-    # Only run if the review comment contains "/iterate"
-    if: github.event.pull_request != null && contains(github.event.comment.body, '/iterate')
+    # Only run if the review comment contains "/iterate" AND the commenter is "yshewchuk"
+    if: github.event.pull_request != null && contains(github.event.comment.body, '/iterate') && github.actor == 'yshewchuk'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

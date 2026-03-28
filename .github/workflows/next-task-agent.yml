@@ -1,10 +1,5 @@
 name: Next Task Agent
 
-on:
-  push:
-    branches:
-      - main
-
 jobs:
   trigger-cursor-agent:
     name: Trigger Cursor Cloud Agent
