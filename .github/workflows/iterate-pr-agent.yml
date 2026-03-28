@@ -1,12 +1,8 @@
 name: Iterate on PR Feedback
 
 on:
-  issue_comment:
-    types: [created, edited]
   pull_request_review_comment:
     types: [created, edited]
-  pull_request_review:
-    types: [submitted]
 
 permissions:
   contents: read
@@ -26,8 +22,8 @@ jobs:
         run: |
           echo "Event Name: ${{ github.event_name }}"
           echo "Action: ${{ github.event.action }}"
-          echo "Is Issue PR: ${{ github.event.issue.pull_request != null }}"
           echo "Is PR Object: ${{ github.event.pull_request != null }}"
+<<<<<<< HEAD
           echo "Comment Body: ${{ github.event.comment.body || github.event.review.body || '' }}"
           
   trigger-cursor-agent:
@@ -37,6 +33,14 @@ jobs:
       (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && contains(github.event.comment.body, '/iterate')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '/iterate')) ||
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '/iterate'))
+=======
+          echo "Comment Body: ${{ github.event.comment.body }}"
+          
+  trigger-cursor-agent:
+    name: Trigger Cursor Cloud Agent for PR Iteration
+    # Only run if the review comment contains "/iterate"
+    if: github.event.pull_request != null && contains(github.event.comment.body, '/iterate')
+>>>>>>> 60f32fe (Update workflow)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -47,8 +51,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Get PR number from issue_comment or pull_request_review_comment/pull_request_review
-          PR_NUMBER="${{ github.event.issue.number || github.event.pull_request.number }}"
+          # Get PR number from the pull_request_review_comment event
+          PR_NUMBER="${{ github.event.pull_request.number }}"
           
           # Fetch PR data to get the branch name and base branch
           PR_DATA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER")
