@@ -32,6 +32,8 @@ jobs:
           PR_BRANCH=$(echo "$PR_DATA" | jq -r .head.ref)
           BASE_BRANCH=$(echo "$PR_DATA" | jq -r .base.ref)
           PR_URL=$(echo "$PR_DATA" | jq -r .html_url)
+          PR_TITLE=$(echo "$PR_DATA" | jq -r .title)
+          PR_BODY=$(echo "$PR_DATA" | jq -r '.body // ""')
           
           # Output for next steps
           echo "PR_BRANCH=$PR_BRANCH" >> $GITHUB_OUTPUT
@@ -41,11 +43,31 @@ jobs:
           # Fetch PR comments
           COMMENTS=$(gh api "repos/${{ github.repository }}/issues/$PR_NUMBER/comments" | jq -r '.[].body' | paste -sd "\n\n" -)
           
-          # Fetch PR review comments (code comments)
-          REVIEW_COMMENTS=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER/comments" | jq -r '.[].body' | paste -sd "\n\n" -)
-          
-          # Fetch PR commits
-          COMMITS=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER/commits" | jq -r '.[].commit.message' | paste -sd "\n" -)
+          # Fetch PR review comments (code comments), including basic location context.
+          REVIEW_COMMENTS=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER/comments" | jq -r '
+            map(
+              (
+                "File: " + (.path // "<unknown>") +
+                (if (.line != null) then (" (line " + (.line|tostring) + ")") else "" end) +
+                (if (.side != null) then (" [" + .side + "]") else "" end) +
+                (if (.user.login != null) then (" by " + .user.login) else "" end)
+              ) + "\n" +
+              (if (.diff_hunk != null and .diff_hunk != "") then (.diff_hunk + "\n") else "" end) +
+              (.body // "")
+            )
+            | join("\n\n")
+          ')
+
+          # Capture the triggering review comment with inline code context.
+          TRIGGER_PATH="${{ github.event.comment.path }}"
+          TRIGGER_LINE="${{ github.event.comment.line }}"
+          TRIGGER_BODY_RAW="${{ github.event.comment.body }}"
+          TRIGGER_DIFF_HUNK_RAW="${{ github.event.comment.diff_hunk }}"
+          TRIGGER_ACTOR="${{ github.actor }}"
+
+          # Escape any accidental output delimiters in the triggering comment.
+          TRIGGER_BODY=$(printf '%s' "$TRIGGER_BODY_RAW" | sed 's/EOF/EO_F/g')
+          TRIGGER_DIFF_HUNK=$(printf '%s' "$TRIGGER_DIFF_HUNK_RAW" | sed 's/EOF/EO_F/g')
           
           # Combine feedback into a structured prompt
           echo "FEEDBACK<<EOF" >> $GITHUB_OUTPUT
@@ -54,8 +76,21 @@ jobs:
           echo "Pull Request Base Branch: $BASE_BRANCH" >> $GITHUB_OUTPUT
           echo "Pull Request Target Branch: $PR_BRANCH" >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
-          echo "Commits in this PR:" >> $GITHUB_OUTPUT
-          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "Pull Request Overview:" >> $GITHUB_OUTPUT
+          echo "Title: $PR_TITLE" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "$PR_BODY" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "Triggered Review Comment Context (inline in diff hunk):" >> $GITHUB_OUTPUT
+          echo "\`\`\`diff" >> $GITHUB_OUTPUT
+          echo "--- a/$TRIGGER_PATH" >> $GITHUB_OUTPUT
+          echo "+++ b/$TRIGGER_PATH" >> $GITHUB_OUTPUT
+          echo "$TRIGGER_DIFF_HUNK" >> $GITHUB_OUTPUT
+          echo "========== Comment on $TRIGGER_PATH${TRIGGER_LINE:+ (line $TRIGGER_LINE)} ==========" >> $GITHUB_OUTPUT
+          echo "Author: $TRIGGER_ACTOR" >> $GITHUB_OUTPUT
+          echo "$TRIGGER_BODY" >> $GITHUB_OUTPUT
+          echo "========== End comment ==========" >> $GITHUB_OUTPUT
+          echo "\`\`\`" >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
           echo "Issue Comments:" >> $GITHUB_OUTPUT
           echo "$COMMENTS" >> $GITHUB_OUTPUT
