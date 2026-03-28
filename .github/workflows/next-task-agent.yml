@@ -17,7 +17,7 @@ jobs:
 
       - name: Trigger Cursor Cloud Agent
         env:
-          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          CURSOR_AGENT_API_KEY: ${{ secrets.CURSOR_AGENT_API_KEY }}
         run: |
           # Use the repository name to form the full URL
           REPO_URL="https://github.com/${{ github.repository }}"
@@ -50,7 +50,7 @@ jobs:
           HTTP_RESPONSE=$(curl --silent --show-error --write-out "HTTPSTATUS:%{http_code}" \
             --request POST \
             --url https://api.cursor.com/v0/agents \
-            --header "Authorization: Bearer ${CURSOR_API_KEY}" \
+            --header "Authorization: Bearer ${CURSOR_AGENT_API_KEY}" \
             --header 'Content-Type: application/json' \
             --data "$JSON_PAYLOAD")
 
