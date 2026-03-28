@@ -69,21 +69,19 @@ jobs:
       - name: Trigger Cursor Cloud Agent
         env:
           CURSOR_AGENT_API_KEY: ${{ secrets.CURSOR_AGENT_API_KEY }}
+          PR_URL: ${{ steps.pr-details.outputs.PR_URL }}
+          FEEDBACK: ${{ steps.pr-details.outputs.FEEDBACK }}
         run: |
-          # Escape the feedback and PR URL from the previous step outputs
-          PR_URL="${{ steps.pr-details.outputs.PR_URL }}"
-          FEEDBACK="${{ steps.pr-details.outputs.FEEDBACK }}"
+          # The feedback is multi-line and may contain code/commands, so we use an environment variable
+          # instead of string interpolation to prevent bash from trying to evaluate it
           
           # Payload format per Cursor Cloud Agents API v0
-          # Note: When source.prUrl is provided, it automatically handles pushing to the PR's branch
-          # target.autoBranch is true by default, meaning it would create a new branch.
-          # We set autoBranch to false so it pushes to the existing PR branch.
           JSON_PAYLOAD=$(jq -n \
             --arg pr_url "$PR_URL" \
-            --arg prompt "$FEEDBACK" \
+            --env FEEDBACK \
             '{
               "prompt": {
-                "text": $prompt
+                "text": $FEEDBACK
               },
               "model": "default",
               "source": {
