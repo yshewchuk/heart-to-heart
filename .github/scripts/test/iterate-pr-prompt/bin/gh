@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Mock gh for iterate-pr prompt tests (invoked via PATH).
+set -euo pipefail
+TEST_ROOT=$(cd "$(dirname "$0")/.." && pwd)
+joined=$*
+case "$joined" in
+  *"/issues/"*"/comments"*) cat "$TEST_ROOT/mock-issue-comments.json" ;;
+  *"/pulls/"*"/comments"*) cat "$TEST_ROOT/mock-review-comments.json" ;;
+  *"/pulls/"*) cat "$TEST_ROOT/mock-pr.json" ;;
+  *) echo "mock gh: unhandled: $*" >&2; exit 1 ;;
+esac
