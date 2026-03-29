@@ -31,7 +31,7 @@
         "note": "create new anonymous account per pairing, manage per-account pairing state, check if account already paired"
       },
       {
-        "path": "app/src/main/java/com/yurishewchuk/hearttoheart/data/PartnerPreferencesRepository.kt",
+        "path": "app/src/main/java/com/yurishewchuk/hearttoheart/data/PartnerPreferences.kt",
         "note": "keyed by anonymous UID"
       },
       {
