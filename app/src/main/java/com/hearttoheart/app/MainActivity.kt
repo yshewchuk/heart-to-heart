@@ -23,6 +23,7 @@ import com.hearttoheart.app.data.HeartMessage
 import com.hearttoheart.app.data.MessageCategory
 import com.hearttoheart.app.data.MessageHistory
 import com.hearttoheart.app.data.MessageSender
+import com.hearttoheart.app.data.AccountSelectionRepository
 import com.hearttoheart.app.data.PairingRepository
 import com.hearttoheart.app.data.Partner
 import com.hearttoheart.app.data.PartnerPreferencesRepository
@@ -61,6 +62,7 @@ class MainActivity : ComponentActivity() {
     
     private lateinit var auth: FirebaseAuth
     private lateinit var pairingRepository: PairingRepository
+    private lateinit var accountSelectionRepository: AccountSelectionRepository
     private lateinit var messageSender: MessageSender
     private lateinit var messageHistory: MessageHistory
     private lateinit var partnerPrefsRepository: PartnerPreferencesRepository
@@ -82,6 +84,7 @@ class MainActivity : ComponentActivity() {
         
         // Initialize repositories
         pairingRepository = PairingRepository(this)
+        accountSelectionRepository = AccountSelectionRepository(this)
         messageHistory = MessageHistory(this)
         messageSender = MessageSender(this)
         partnerPrefsRepository = PartnerPreferencesRepository(this)
@@ -111,12 +114,12 @@ class MainActivity : ComponentActivity() {
                     
                     // Load account list and selected account from local storage
                     LaunchedEffect(Unit) {
-                        pairingRepository.getPairedAccounts().collect { savedAccounts ->
+                        accountSelectionRepository.getPairedAccounts().collect { savedAccounts ->
                             accounts = savedAccounts
                         }
                     }
                     LaunchedEffect(Unit) {
-                        pairingRepository.getSelectedAccountUid().collect { selectedUid ->
+                        accountSelectionRepository.getSelectedAccountUid().collect { selectedUid ->
                             selectedAccountUid = selectedUid
                         }
                     }
@@ -149,7 +152,7 @@ class MainActivity : ComponentActivity() {
                     // Ensure selected account exists.
                     LaunchedEffect(activeAccountUid, selectedAccountUid) {
                         if (activeAccountUid != null && activeAccountUid != selectedAccountUid) {
-                            pairingRepository.setSelectedAccountUid(activeAccountUid)
+                            accountSelectionRepository.setSelectedAccountUid(activeAccountUid)
                         }
                     }
 
@@ -191,7 +194,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onSelectAccount = { accountUid ->
                                     scope.launch {
-                                        pairingRepository.setSelectedAccountUid(accountUid)
+                                        accountSelectionRepository.setSelectedAccountUid(accountUid)
                                     }
                                 },
                                 onPairClick = {
@@ -224,7 +227,7 @@ class MainActivity : ComponentActivity() {
                                 onNavigateBack = { currentScreen = Screen.Home },
                                 onSelectAccount = { accountUid ->
                                     scope.launch {
-                                        pairingRepository.setSelectedAccountUid(accountUid)
+                                        accountSelectionRepository.setSelectedAccountUid(accountUid)
                                     }
                                 },
                                 onPrefsUpdated = {
@@ -233,7 +236,7 @@ class MainActivity : ComponentActivity() {
                                 onUnpair = { accountUid ->
                                     scope.launch {
                                         messageHistory.clearHistory(accountUid)
-                                        pairingRepository.unpairAccount(accountUid)
+                                        accountSelectionRepository.unpairAccount(accountUid)
                                         currentScreen = Screen.Home
                                     }
                                 }
