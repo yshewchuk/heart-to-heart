@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "path": "a.txt",
+    "line": 1,
+    "side": "RIGHT",
+    "user": { "login": "reviewer-a" },
+    "body": "Still open feedback.",
+    "diff_hunk": "@@ -0,0 +1 @@\n+x"
+  },
+  {
+    "id": 2,
+    "path": "b.txt",
+    "line": 2,
+    "side": "RIGHT",
+    "user": { "login": "reviewer-b" },
+    "body": "This thread is resolved on GitHub.",
+    "diff_hunk": "@@ -0,0 +1 @@\n+y"
+  }
+]

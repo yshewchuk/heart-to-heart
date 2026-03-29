@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 # Mock gh for iterate-pr prompt tests (invoked via PATH).
 set -euo pipefail
-TEST_ROOT=$(cd "$(dirname "$0")/.." && pwd)
+TEST_ROOT="${MOCK_GH_TEST_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 joined=$*
 case "$joined" in
+  *" graphql "*|*"graphql"*)
+    if [[ -f "$TEST_ROOT/mock-graphql.json" ]]; then
+      cat "$TEST_ROOT/mock-graphql.json"
+    else
+      echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}' 
+    fi
+    ;;
   *"/pulls/"*"/comments"*) cat "$TEST_ROOT/mock-review-comments.json" ;;
   *"/pulls/"*) cat "$TEST_ROOT/mock-pr.json" ;;
   *"/issues/"*"/comments"*) cat "$TEST_ROOT/mock-issue-comments.json" ;;

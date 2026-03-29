@@ -33,9 +33,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
         run: ./.github/scripts/build-iterate-pr-agent-prompt.sh
 
       - name: Trigger Cursor Cloud Agent
+        if: steps.pr-details.outputs.SKIP_AGENT != 'true'
         env:
           CURSOR_AGENT_API_KEY: ${{ secrets.CURSOR_AGENT_API_KEY }}
           PR_URL: ${{ steps.pr-details.outputs.PR_URL }}

@@ -4,10 +4,13 @@
 #     --slurpfile event EVENT.json \
 #     --argjson pr PR.json \
 #     --argjson review_comments REVIEW_COMMENTS.json \
+#     --argjson resolved_comment_ids '[123,456]' \
 #     --arg actor LOGIN
 
 ($event[0]) as $event |
-($review_comments | map(
+($review_comments
+  | map(select(.id as $cid | ($cid == null) or (($resolved_comment_ids | index($cid)) == null)))
+  | map(
     (
       "File: " + (.path // "<unknown>") +
       (if (.line != null) then (" (line " + (.line|tostring) + ")") else "" end) +

@@ -1,0 +1,11 @@
+{
+  "pull_request": { "number": 20 },
+  "comment": {
+    "id": 99,
+    "path": "c.txt",
+    "line": 1,
+    "body": "Iterate please. /iterate",
+    "diff_hunk": "@@ -0,0 +1 @@\n+z",
+    "user": { "login": "yshewchuk" }
+  }
+}
