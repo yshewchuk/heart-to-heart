@@ -372,7 +372,12 @@ class MainActivity : ComponentActivity() {
             // Trigger notification locally for testing
             android.os.Handler(mainLooper).postDelayed({
                 Log.d(TAG, "Triggering local notification for testing")
-                AlarmService.start(this, message.category, message.note.ifEmpty { "Message from your love 💕" })
+                AlarmService.start(
+                    this,
+                    message.category,
+                    message.note.ifEmpty { "Message from your love 💕" },
+                    activeAccountUid
+                )
             }, 5000) // 5 second delay
         }
     }

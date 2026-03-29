@@ -6,6 +6,7 @@ import com.google.firebase.messaging.RemoteMessage
 import com.hearttoheart.app.data.EncryptionHelper
 import com.hearttoheart.app.data.MessageCategory
 import com.hearttoheart.app.data.MessageHistory
+import com.hearttoheart.app.data.AccountSelectionRepository
 import com.hearttoheart.app.data.PairingRepository
 import com.hearttoheart.app.data.StoredMessage
 import kotlinx.coroutines.CoroutineScope
@@ -23,6 +24,7 @@ class HeartFCMService : FirebaseMessagingService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val messageHistory by lazy { MessageHistory(applicationContext) }
     private val pairingRepository by lazy { PairingRepository(applicationContext) }
+    private val accountSelectionRepository by lazy { AccountSelectionRepository(applicationContext) }
     
     override fun onNewToken(token: String) {
         super.onNewToken(token)
@@ -91,7 +93,8 @@ class HeartFCMService : FirebaseMessagingService() {
             }
             
             // Trigger the alarm service (on main thread via the service context)
-            AlarmService.start(this@HeartFCMService, category, note)
+            accountSelectionRepository.setSelectedAccountUid(senderUid)
+            AlarmService.start(this@HeartFCMService, category, note, accountUid = senderUid)
         }
     }
     

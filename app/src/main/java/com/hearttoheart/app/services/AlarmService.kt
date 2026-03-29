@@ -26,6 +26,7 @@ import com.hearttoheart.app.MainActivity
 import com.hearttoheart.app.R
 import com.hearttoheart.app.data.MessageCategory
 import com.hearttoheart.app.data.NotificationIcon
+import com.hearttoheart.app.data.AccountSelectionRepository
 import com.hearttoheart.app.data.PartnerPreferencesRepository
 import com.hearttoheart.app.data.PartnerPrefs
 import com.hearttoheart.app.ui.AlarmActivity
@@ -56,6 +57,7 @@ class AlarmService : Service() {
     
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private lateinit var partnerPrefsRepository: PartnerPreferencesRepository
+    private lateinit var accountSelectionRepository: AccountSelectionRepository
     
     override fun onBind(intent: Intent?): IBinder? = null
     
@@ -70,34 +72,9 @@ class AlarmService : Service() {
             getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         }
         partnerPrefsRepository = PartnerPreferencesRepository(this)
+        accountSelectionRepository = AccountSelectionRepository(this)
         
-        // Load custom preferences (blocking because we need it immediately)
-        runBlocking {
-            try {
-                val prefs = partnerPrefsRepository.getPreferences().first()
-                customNotificationIcon = prefs.notificationIcon
-                partnerNickname = prefs.nickname.ifBlank { "your love" }
-                
-                // Load profile picture as bitmap for notification
-                prefs.profilePictureUri?.let { pathOrUri ->
-                    try {
-                        // Check if it's a file path (from internal storage) or a URI
-                        profilePictureBitmap = if (pathOrUri.startsWith("/")) {
-                            // It's a file path - load directly (already rotated when saved)
-                            BitmapFactory.decodeFile(pathOrUri)
-                        } else {
-                            // It's a URI - load and rotate
-                            val uri = Uri.parse(pathOrUri)
-                            loadAndRotateBitmap(uri)
-                        }
-                    } catch (e: Exception) {
-                        // Profile picture not available, will use default
-                    }
-                }
-            } catch (e: Exception) {
-                // Use defaults on error
-            }
-        }
+        // Preferences are loaded from each start intent in onStartCommand.
     }
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -111,6 +88,7 @@ class AlarmService : Service() {
             MessageCategory.valueOf(it) 
         } ?: MessageCategory.NUDGE
         val note = intent?.getStringExtra(EXTRA_NOTE) ?: ""
+        loadPreferencesForAccount(resolveAlarmAccountUid(intent))
         
         currentCategory = category
         
@@ -160,6 +138,7 @@ class AlarmService : Service() {
         val fullScreenIntent = Intent(this, AlarmActivity::class.java).apply {
             putExtra(AlarmActivity.EXTRA_CATEGORY, category.name)
             putExtra(AlarmActivity.EXTRA_NOTE, note)
+            intent?.getStringExtra(EXTRA_ACCOUNT_UID)?.let { putExtra(AlarmActivity.EXTRA_ACCOUNT_UID, it) }
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val fullScreenPendingIntent = PendingIntent.getActivity(
@@ -367,6 +346,9 @@ class AlarmService : Service() {
             val intent = Intent(this, AlarmActivity::class.java).apply {
                 putExtra(AlarmActivity.EXTRA_CATEGORY, MessageCategory.LIFELINE.name)
                 putExtra(AlarmActivity.EXTRA_NOTE, note)
+                this@AlarmService.intent?.getStringExtra(EXTRA_ACCOUNT_UID)?.let {
+                    putExtra(AlarmActivity.EXTRA_ACCOUNT_UID, it)
+                }
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
             startActivity(intent)
@@ -519,6 +501,51 @@ class AlarmService : Service() {
             acquire(10 * 60 * 1000L) // 10 minutes max
         }
     }
+
+    private fun resolveAlarmAccountUid(startIntent: Intent?): String? {
+        val explicitAccountUid = startIntent?.getStringExtra(EXTRA_ACCOUNT_UID)
+        if (!explicitAccountUid.isNullOrBlank()) {
+            return explicitAccountUid
+        }
+
+        return runBlocking {
+            val pairedAccounts = accountSelectionRepository.getPairedAccounts().first()
+            val selectedAccountUid = accountSelectionRepository.getSelectedAccountUid().first()
+            when {
+                !selectedAccountUid.isNullOrBlank() && pairedAccounts.containsKey(selectedAccountUid) -> selectedAccountUid
+                pairedAccounts.isNotEmpty() -> pairedAccounts.keys.sorted().first()
+                else -> null
+            }
+        }
+    }
+
+    private fun loadPreferencesForAccount(accountUid: String?) {
+        customNotificationIcon = NotificationIcon.HEART
+        partnerNickname = "your love"
+        profilePictureBitmap = null
+        runBlocking {
+            try {
+                val prefs = accountUid?.let { partnerPrefsRepository.getPreferences(it).first() } ?: PartnerPrefs()
+                customNotificationIcon = prefs.notificationIcon
+                partnerNickname = prefs.nickname.ifBlank { "your love" }
+
+                prefs.profilePictureUri?.let { pathOrUri ->
+                    try {
+                        profilePictureBitmap = if (pathOrUri.startsWith("/")) {
+                            BitmapFactory.decodeFile(pathOrUri)
+                        } else {
+                            val uri = Uri.parse(pathOrUri)
+                            loadAndRotateBitmap(uri)
+                        }
+                    } catch (_: Exception) {
+                        // Use default icon/avatar when profile picture fails to load.
+                    }
+                }
+            } catch (_: Exception) {
+                // Keep default values on lookup failure.
+            }
+        }
+    }
     
     private fun releaseWakeLock() {
         wakeLock?.let {
@@ -610,15 +637,17 @@ class AlarmService : Service() {
         const val PERSISTENT_NOTIFICATION_ID = 1002
         const val EXTRA_CATEGORY = "extra_category"
         const val EXTRA_NOTE = "extra_note"
+        const val EXTRA_ACCOUNT_UID = "extra_account_uid"
         const val ACTION_DISMISS = "com.hearttoheart.ACTION_DISMISS"
         
         /**
          * Start the alarm service with the given category.
          */
-        fun start(context: Context, category: MessageCategory, note: String = "") {
+        fun start(context: Context, category: MessageCategory, note: String = "", accountUid: String? = null) {
             val intent = Intent(context, AlarmService::class.java).apply {
                 putExtra(EXTRA_CATEGORY, category.name)
                 putExtra(EXTRA_NOTE, note)
+                accountUid?.let { putExtra(EXTRA_ACCOUNT_UID, it) }
             }
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

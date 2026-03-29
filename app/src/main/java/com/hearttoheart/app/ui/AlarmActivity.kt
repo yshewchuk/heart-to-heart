@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hearttoheart.app.data.MessageCategory
+import com.hearttoheart.app.data.AccountSelectionRepository
 import com.hearttoheart.app.services.AlarmService
 import com.hearttoheart.app.data.PartnerPreferencesRepository
 import com.hearttoheart.app.ui.theme.CoralDark
@@ -56,11 +57,16 @@ class AlarmActivity : ComponentActivity() {
         val categoryName = intent.getStringExtra(EXTRA_CATEGORY) ?: MessageCategory.LIFELINE.name
         val category = MessageCategory.valueOf(categoryName)
         val note = intent.getStringExtra(EXTRA_NOTE) ?: ""
+        val accountSelectionRepository = AccountSelectionRepository(this)
+        val alarmAccountUid = resolveAlarmAccountUid(
+            explicitAccountUid = intent.getStringExtra(EXTRA_ACCOUNT_UID),
+            accountSelectionRepository = accountSelectionRepository
+        )
         
         // Load partner preferences
         val prefsRepository = PartnerPreferencesRepository(this)
         val prefs = runBlocking { 
-            try { prefsRepository.getPreferences().first() } 
+            try { alarmAccountUid?.let { prefsRepository.getPreferences(it).first() } }
             catch (e: Exception) { null }
         }
         val partnerNickname = prefs?.nickname?.ifBlank { null } ?: "your love"
@@ -106,6 +112,23 @@ class AlarmActivity : ComponentActivity() {
     companion object {
         const val EXTRA_CATEGORY = "extra_category"
         const val EXTRA_NOTE = "extra_note"
+        const val EXTRA_ACCOUNT_UID = "extra_account_uid"
+    }
+
+    private fun resolveAlarmAccountUid(
+        explicitAccountUid: String?,
+        accountSelectionRepository: AccountSelectionRepository
+    ): String? {
+        if (!explicitAccountUid.isNullOrBlank()) return explicitAccountUid
+        return runBlocking {
+            val pairedAccounts = accountSelectionRepository.getPairedAccounts().first()
+            val selectedAccountUid = accountSelectionRepository.getSelectedAccountUid().first()
+            when {
+                !selectedAccountUid.isNullOrBlank() && pairedAccounts.containsKey(selectedAccountUid) -> selectedAccountUid
+                pairedAccounts.isNotEmpty() -> pairedAccounts.keys.sorted().first()
+                else -> null
+            }
+        }
     }
 }
 
