@@ -26,7 +26,6 @@ import com.hearttoheart.app.MainActivity
 import com.hearttoheart.app.R
 import com.hearttoheart.app.data.MessageCategory
 import com.hearttoheart.app.data.NotificationIcon
-import com.hearttoheart.app.data.PairingRepository
 import com.hearttoheart.app.data.PartnerPreferencesRepository
 import com.hearttoheart.app.data.PartnerPrefs
 import com.hearttoheart.app.ui.AlarmActivity
@@ -57,7 +56,6 @@ class AlarmService : Service() {
     
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private lateinit var partnerPrefsRepository: PartnerPreferencesRepository
-    private lateinit var pairingRepository: PairingRepository
     
     override fun onBind(intent: Intent?): IBinder? = null
     
@@ -72,15 +70,11 @@ class AlarmService : Service() {
             getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         }
         partnerPrefsRepository = PartnerPreferencesRepository(this)
-        pairingRepository = PairingRepository(this)
         
         // Load custom preferences (blocking because we need it immediately)
         runBlocking {
             try {
-                val selectedAccountUid = pairingRepository.getSelectedAccountUid().first()
-                    ?: pairingRepository.getPairedAccounts().first().keys.firstOrNull()
-                val prefs = selectedAccountUid?.let { partnerPrefsRepository.getPreferences(it).first() }
-                    ?: PartnerPrefs()
+                val prefs = partnerPrefsRepository.getPreferences().first()
                 customNotificationIcon = prefs.notificationIcon
                 partnerNickname = prefs.nickname.ifBlank { "your love" }
                 
