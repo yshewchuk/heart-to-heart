@@ -1,0 +1,12 @@
+{
+  "issue": {
+    "number": 20,
+    "pull_request": { "url": "https://api.github.com/repos/example/heart-to-heart/pulls/20" }
+  },
+  "comment": {
+    "body": "Please also run when comment is on PR body. /iterate",
+    "user": { "login": "yshewchuk" }
+  },
+  "sender": { "login": "yshewchuk" }
+}
+

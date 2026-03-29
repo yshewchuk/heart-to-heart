@@ -12,6 +12,9 @@
 
 # Generated files
 bin/
+# Mock gh for workflow script tests (directory name is "bin")
+!.github/scripts/test/iterate-pr-prompt/bin/
+!.github/scripts/test/iterate-pr-prompt/bin/gh
 gen/
 out/
 release/

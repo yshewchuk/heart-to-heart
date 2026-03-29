@@ -3,6 +3,8 @@ name: Iterate on PR Feedback
 on:
   pull_request_review_comment:
     types: [created, edited]
+  issue_comment:
+    types: [created, edited]
 
 permissions:
   contents: read
@@ -13,7 +15,13 @@ jobs:
   trigger-cursor-agent:
     name: Trigger Cursor Cloud Agent for PR Iteration
     # Only run if the review comment contains "/iterate" AND the commenter is "yshewchuk"
-    if: github.event.pull_request != null && contains(github.event.comment.body, '/iterate') && github.actor == 'yshewchuk'
+    if: |
+      contains(github.event.comment.body, '/iterate') &&
+      github.actor == 'yshewchuk' &&
+      (
+        (github.event_name == 'pull_request_review_comment' && github.event.pull_request != null) ||
+        (github.event_name == 'issue_comment' && github.event.issue.pull_request != null)
+      )
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -23,82 +31,9 @@ jobs:
         id: pr-details
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          # Get PR number from the pull_request_review_comment event
-          PR_NUMBER="${{ github.event.pull_request.number }}"
-          
-          # Fetch PR data to get the branch name and base branch
-          PR_DATA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER")
-          PR_BRANCH=$(echo "$PR_DATA" | jq -r .head.ref)
-          BASE_BRANCH=$(echo "$PR_DATA" | jq -r .base.ref)
-          PR_URL=$(echo "$PR_DATA" | jq -r .html_url)
-          PR_TITLE=$(echo "$PR_DATA" | jq -r .title)
-          PR_BODY=$(echo "$PR_DATA" | jq -r '.body // ""')
-          
-          # Output for next steps
-          echo "PR_BRANCH=$PR_BRANCH" >> $GITHUB_OUTPUT
-          echo "BASE_BRANCH=$BASE_BRANCH" >> $GITHUB_OUTPUT
-          echo "PR_URL=$PR_URL" >> $GITHUB_OUTPUT
-          
-          # Fetch PR comments
-          COMMENTS=$(gh api "repos/${{ github.repository }}/issues/$PR_NUMBER/comments" | jq -r '.[].body' | paste -sd "\n\n" -)
-          
-          # Fetch PR review comments (code comments), including basic location context.
-          REVIEW_COMMENTS=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER/comments" | jq -r '
-            map(
-              (
-                "File: " + (.path // "<unknown>") +
-                (if (.line != null) then (" (line " + (.line|tostring) + ")") else "" end) +
-                (if (.side != null) then (" [" + .side + "]") else "" end) +
-                (if (.user.login != null) then (" by " + .user.login) else "" end)
-              ) + "\n" +
-              (if (.diff_hunk != null and .diff_hunk != "") then (.diff_hunk + "\n") else "" end) +
-              (.body // "")
-            )
-            | join("\n\n")
-          ')
-
-          # Capture the triggering review comment with inline code context.
-          TRIGGER_PATH="${{ github.event.comment.path }}"
-          TRIGGER_LINE="${{ github.event.comment.line }}"
-          TRIGGER_BODY_RAW="${{ github.event.comment.body }}"
-          TRIGGER_DIFF_HUNK_RAW="${{ github.event.comment.diff_hunk }}"
-          TRIGGER_ACTOR="${{ github.actor }}"
-
-          # Use a unique delimiter for multi-line output so PR content/comments can't accidentally terminate the block.
-          FEEDBACK_DELIM="FEEDBACK_$(date +%s)_$RANDOM"
-          
-          # Combine feedback into a structured prompt
-          echo "FEEDBACK<<$FEEDBACK_DELIM" >> $GITHUB_OUTPUT
-          echo "The user has requested to iterate on this Pull Request based on the feedback." >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "Pull Request Base Branch: $BASE_BRANCH" >> $GITHUB_OUTPUT
-          echo "Pull Request Target Branch: $PR_BRANCH" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "Pull Request Overview:" >> $GITHUB_OUTPUT
-          echo "Title: $PR_TITLE" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "$PR_BODY" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "Triggered Review Comment Context (inline in diff hunk):" >> $GITHUB_OUTPUT
-          echo "\`\`\`diff" >> $GITHUB_OUTPUT
-          echo "--- a/$TRIGGER_PATH" >> $GITHUB_OUTPUT
-          echo "+++ b/$TRIGGER_PATH" >> $GITHUB_OUTPUT
-          echo "$TRIGGER_DIFF_HUNK_RAW" >> $GITHUB_OUTPUT
-          echo "========== Comment on $TRIGGER_PATH${TRIGGER_LINE:+ (line $TRIGGER_LINE)} ==========" >> $GITHUB_OUTPUT
-          echo "Author: $TRIGGER_ACTOR" >> $GITHUB_OUTPUT
-          echo "$TRIGGER_BODY_RAW" >> $GITHUB_OUTPUT
-          echo "========== End comment ==========" >> $GITHUB_OUTPUT
-          echo "\`\`\`" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "Issue Comments:" >> $GITHUB_OUTPUT
-          echo "$COMMENTS" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "Code Review Comments:" >> $GITHUB_OUTPUT
-          echo "$REVIEW_COMMENTS" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "Please review the feedback provided in the comments and implement the requested changes. Since the target PR URL has been provided, make sure to commit and push the changes directly to the existing PR branch ($PR_BRANCH)." >> $GITHUB_OUTPUT
-          echo "$FEEDBACK_DELIM" >> $GITHUB_OUTPUT
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_ACTOR: ${{ github.actor }}
+        run: ./.github/scripts/build-iterate-pr-agent-prompt.sh
 
       - name: Trigger Cursor Cloud Agent
         env:
