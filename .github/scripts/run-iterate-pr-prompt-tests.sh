@@ -18,4 +18,11 @@ if ! diff -u "$TEST_DIR/expected-feedback.txt" "$TMP"; then
   echo "iterate-pr-prompt test: output mismatch" >&2
   exit 1
 fi
+
+"$SCRIPT_DIR/build-iterate-pr-agent-prompt.sh" "$TEST_DIR/event-issue-comment.json" >"$TMP"
+
+if ! diff -u "$TEST_DIR/expected-feedback-issue-comment.txt" "$TMP"; then
+  echo "iterate-pr-prompt test (issue_comment): output mismatch" >&2
+  exit 1
+fi
 echo "iterate-pr-prompt tests: OK"

@@ -6,5 +6,6 @@ joined=$*
 case "$joined" in
   *"/pulls/"*"/comments"*) cat "$TEST_ROOT/mock-review-comments.json" ;;
   *"/pulls/"*) cat "$TEST_ROOT/mock-pr.json" ;;
+  *"/issues/"*"/comments"*) cat "$TEST_ROOT/mock-issue-comments.json" ;;
   *) echo "mock gh: unhandled: $*" >&2; exit 1 ;;
 esac

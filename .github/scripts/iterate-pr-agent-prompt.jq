@@ -18,10 +18,34 @@
     (.body // "")
   ) | join("\n\n")
 ) as $review_text |
-($event.comment.path // "<unknown>") as $path |
-($event.comment.line // null) as $line |
-($event.comment.body // "") as $trigger_body |
-($event.comment.diff_hunk // "") as $trigger_hunk |
+(
+  if ($event.pull_request != null) then
+    ($event.comment.path // "<unknown>")
+  else
+    "<pr-body>"
+  end
+) as $path |
+(
+  if ($event.pull_request != null) then
+    ($event.comment.line // null)
+  else
+    null
+  end
+) as $line |
+(
+  if ($event.pull_request != null) then
+    ($event.comment.body // "")
+  else
+    ($event.comment.body // "")
+  end
+) as $trigger_body |
+(
+  if ($event.pull_request != null) then
+    ($event.comment.diff_hunk // "")
+  else
+    ""
+  end
+) as $trigger_hunk |
 ($pr.base.ref // "") as $base |
 ($pr.head.ref // "") as $head |
 ($pr.title // "") as $title |

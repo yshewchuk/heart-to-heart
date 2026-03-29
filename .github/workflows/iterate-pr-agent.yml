@@ -3,6 +3,8 @@ name: Iterate on PR Feedback
 on:
   pull_request_review_comment:
     types: [created, edited]
+  issue_comment:
+    types: [created, edited]
 
 permissions:
   contents: read
@@ -13,7 +15,13 @@ jobs:
   trigger-cursor-agent:
     name: Trigger Cursor Cloud Agent for PR Iteration
     # Only run if the review comment contains "/iterate" AND the commenter is "yshewchuk"
-    if: github.event.pull_request != null && contains(github.event.comment.body, '/iterate') && github.actor == 'yshewchuk'
+    if: |
+      contains(github.event.comment.body, '/iterate') &&
+      github.actor == 'yshewchuk' &&
+      (
+        (github.event_name == 'pull_request_review_comment' && github.event.pull_request != null) ||
+        (github.event_name == 'issue_comment' && github.event.issue.pull_request != null)
+      )
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

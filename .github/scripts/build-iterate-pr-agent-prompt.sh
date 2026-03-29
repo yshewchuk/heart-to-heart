@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # Build the plaintext FEEDBACK prompt for the iterate-on-PR Cursor Cloud Agent workflow.
 #
-# Reads the pull_request_review_comment webhook payload from GITHUB_EVENT_PATH (set by
-# GitHub Actions) so diff hunks and comment bodies are never interpolated into the
-# workflow YAML (which would break the shell when they contain quotes, $(), etc.).
+# Reads the webhook payload from GITHUB_EVENT_PATH (set by GitHub Actions) so diff hunks
+# and comment bodies are never interpolated into the workflow YAML (which would break the
+# shell when they contain quotes, $(), etc.).
+#
+# Supported events:
+# - pull_request_review_comment (inline diff comment)
+# - issue_comment (PR body / timeline comment; only when issue.pull_request is present)
 #
 # Environment:
 #   GITHUB_EVENT_PATH   Path to the webhook JSON (required unless first arg is provided)
@@ -29,9 +33,17 @@ fi
 : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
 : "${GH_TOKEN:?GH_TOKEN is required}"
 
-PR_NUMBER=$(jq -r '.pull_request.number // empty' "$EVENT_FILE")
+PR_NUMBER=$(
+  jq -r '
+    (
+      .pull_request.number
+      // (if (.issue.pull_request != null) then .issue.number else empty end)
+      // empty
+    )
+  ' "$EVENT_FILE"
+)
 if [[ -z "$PR_NUMBER" || "$PR_NUMBER" == null ]]; then
-  echo "build-iterate-pr-agent-prompt.sh: event has no pull_request.number" >&2
+  echo "build-iterate-pr-agent-prompt.sh: event has no pull_request.number or issue.number" >&2
   exit 1
 fi
 
@@ -41,7 +53,15 @@ REVIEW_COMMENTS_JSON=$(gh api "${REPO_API}/pulls/${PR_NUMBER}/comments")
 
 ACTOR="${GITHUB_ACTOR:-}"
 if [[ -z "$ACTOR" ]]; then
-  ACTOR=$(jq -r '.comment.user.login // "unknown"' "$EVENT_FILE")
+  ACTOR=$(
+    jq -r '
+      (
+        .comment.user.login
+        // .sender.login
+        // "unknown"
+      )
+    ' "$EVENT_FILE"
+  )
 fi
 
 FEEDBACK_TMP=$(mktemp)
