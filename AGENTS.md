@@ -14,7 +14,7 @@ Heart-to-Heart is an Android native app (Kotlin, Jetpack Compose) with a Firebas
 ### Prerequisites
 
 - **JDK 21** (system default, used by Gradle/Kotlin)
-- **Android SDK** at `/opt/android-sdk` with `ANDROID_HOME` set; platform 34, build-tools 34.0.0, platform-tools installed
+- **Android SDK** at `/opt/android-sdk` with `ANDROID_HOME` set; platform 35, build-tools 35.0.0, platform-tools installed
 - **Node.js 20** via nvm (for Firebase Functions)
 - **Gradle 8.5** wrapper is in the repo (`./gradlew`)
 
@@ -31,7 +31,7 @@ Heart-to-Heart is an Android native app (Kotlin, Jetpack Compose) with a Firebas
 
 ### Important caveats
 
-- **`google-services.json`** is git-ignored. A placeholder file must exist at `app/google-services.json` for the Android build to succeed. If missing, create one with the `com.hearttoheart.app` package name and dummy values. The placeholder allows compilation but not runtime Firebase connectivity.
+- **`google-services.json`** is git-ignored. Place the real file from Firebase at `app/google-services.json` for local builds. GitHub Actions writes it from the repository secret **`GOOGLE_SERVICES_JSON`** (same JSON contents as the file) before `./gradlew assembleRelease`.
 - **No unit test source files** currently exist in `app/src/test/` or `app/src/androidTest/`. The `./gradlew test` task succeeds with `NO-SOURCE`.
 - The Kotlin compiler produces warnings about unused variables in `MainActivity.kt`, `CategoryButton.kt`, `HistoryScreen.kt`, and `ScanQRScreen.kt`. These are pre-existing and not introduced by environment setup.
 - Android instrumentation tests (`connectedAndroidTest`) require a physical device or emulator and cannot run in this headless cloud VM.

@@ -60,6 +60,8 @@ This keeps each pairing isolated while reusing the existing Firestore schema bas
    - Download `google-services.json` and place it in `app/`
    - Enable Authentication (Anonymous) and Cloud Firestore
 
+   For **CI** (Android build workflow), add a repository secret named `GOOGLE_SERVICES_JSON` whose value is the full contents of that same `google-services.json` file.
+
 3. **Add audio files** (optional)
    - Place `heartbeat.mp3` and `alarm.mp3` in `app/src/main/res/raw/`
    - See `raw/README.md` for specifications
