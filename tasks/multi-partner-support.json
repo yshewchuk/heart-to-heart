@@ -94,8 +94,8 @@
       "title": "Auth model — new anonymous account per pairing",
       "description": "Change PairingRepository to create a fresh Firebase anonymous account at QR generation time, not reuse a device-level account. QR contains the new account's UID. Save accounts in DataStore as a Map keyed by anonymous UID. Add check to reject pairing requests from already-paired accounts. Update ShowQRScreen and ScanQRScreen to use the new account-based flow.",
       "estimate": "~5 files, ~350 lines",
-      "status": "in_progress",
-      "started": true,
+      "status": "completed",
+      "started": false,
       "dependencies": [],
       "agentPrompt": "Implement PR 1: Change PairingRepository to create a fresh Firebase anonymous account at QR generation time, not reuse a device-level account. QR contains the new account's UID. Save accounts in DataStore as a Map keyed by anonymous UID. Add check to reject pairing requests from already-paired accounts. Update ShowQRScreen and ScanQRScreen to use the new account-based flow."
     },
