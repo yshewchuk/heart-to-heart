@@ -44,44 +44,20 @@ jobs:
         run: yes | sdkmanager --licenses
 
       - name: Install platform and build-tools
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: Write SDK path for Gradle
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
 
-      - name: Placeholder google-services.json for CI
+      - name: Write google-services.json from secret
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          cat > app/google-services.json <<'EOF'
-          {
-            "project_info": {
-              "project_number": "0",
-              "project_id": "ci-placeholder",
-              "storage_bucket": "ci-placeholder.appspot.com"
-            },
-            "client": [
-              {
-                "client_info": {
-                  "mobilesdk_app_id": "1:0:android:0000000000000000000000",
-                  "android_client_info": {
-                    "package_name": "com.hearttoheart.app"
-                  }
-                },
-                "oauth_client": [],
-                "api_key": [
-                  {
-                    "current_key": "placeholder-not-for-production"
-                  }
-                ],
-                "services": {
-                  "appinvite_service": {
-                    "other_platform_oauth_client": []
-                  }
-                }
-              }
-            ],
-            "configuration_version": "1"
-          }
-          EOF
+          if [ -z "${GOOGLE_SERVICES_JSON}" ]; then
+            echo "Error: GOOGLE_SERVICES_JSON repository secret is not set or empty."
+            exit 1
+          fi
+          printf '%s\n' "$GOOGLE_SERVICES_JSON" > app/google-services.json
 
       - name: Assemble release
         run: ./gradlew assembleRelease --no-daemon

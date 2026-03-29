@@ -63,9 +63,8 @@ captures/
 .externalNativeBuild
 .cxx/
 
-# Google Services (plugin) — real secrets stay local; committed placeholder for CI/local compile
+# Google Services (plugin)
 google-services.json
-!app/google-services.json
 
 # Freeline
 freeline.py
