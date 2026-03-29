@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.hearttoheart.app"
+    namespace = "com.yurishewchuk.hearttoheart"
     compileSdk = 35
 
     val keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -38,14 +38,14 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.hearttoheart.app"
+        applicationId = "com.yurishewchuk.hearttoheart"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
-        versionName = "1.0.0"
 
         System.getenv("VERSION_CODE")?.toIntOrNull()?.let { versionCode = it }
-        System.getenv("VERSION_NAME")?.takeIf { it.isNotBlank() }?.let { versionName = it }
+        versionName = System.getenv("VERSION_NAME")?.takeIf { it.isNotBlank() }
+            ?: "1.0.$versionCode"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

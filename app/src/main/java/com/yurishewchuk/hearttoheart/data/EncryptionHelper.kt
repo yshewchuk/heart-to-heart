@@ -1,4 +1,4 @@
-package com.hearttoheart.app.data
+package com.yurishewchuk.hearttoheart.data
 
 import android.util.Base64
 import android.util.Log

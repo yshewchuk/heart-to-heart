@@ -1,4 +1,4 @@
-package com.hearttoheart.app
+package com.yurishewchuk.hearttoheart
 
 import android.app.Application
 import android.app.NotificationChannel

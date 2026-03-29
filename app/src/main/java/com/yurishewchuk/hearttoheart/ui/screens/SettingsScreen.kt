@@ -1,4 +1,4 @@
-package com.hearttoheart.app.ui.screens
+package com.yurishewchuk.hearttoheart.ui.screens
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -32,12 +32,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
-import com.hearttoheart.app.data.NICKNAME_PRESETS
-import com.hearttoheart.app.data.NotificationIcon
-import com.hearttoheart.app.data.PairingRepository
-import com.hearttoheart.app.data.PartnerPreferencesRepository
-import com.hearttoheart.app.data.PartnerPrefs
-import com.hearttoheart.app.ui.theme.Coral
+import com.yurishewchuk.hearttoheart.data.NICKNAME_PRESETS
+import com.yurishewchuk.hearttoheart.data.NotificationIcon
+import com.yurishewchuk.hearttoheart.data.PairingRepository
+import com.yurishewchuk.hearttoheart.data.PartnerPreferencesRepository
+import com.yurishewchuk.hearttoheart.data.PartnerPrefs
+import com.yurishewchuk.hearttoheart.ui.theme.Coral
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)

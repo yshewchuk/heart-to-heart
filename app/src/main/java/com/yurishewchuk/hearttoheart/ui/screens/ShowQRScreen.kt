@@ -1,4 +1,4 @@
-package com.hearttoheart.app.ui.screens
+package com.yurishewchuk.hearttoheart.ui.screens
 
 import android.graphics.Bitmap
 import android.util.Log
@@ -28,10 +28,10 @@ import androidx.compose.ui.unit.sp
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
-import com.hearttoheart.app.data.EncryptionHelper
-import com.hearttoheart.app.data.PairingRepository
-import com.hearttoheart.app.data.PairingRequest
-import com.hearttoheart.app.ui.theme.Coral
+import com.yurishewchuk.hearttoheart.data.EncryptionHelper
+import com.yurishewchuk.hearttoheart.data.PairingRepository
+import com.yurishewchuk.hearttoheart.data.PairingRequest
+import com.yurishewchuk.hearttoheart.ui.theme.Coral
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 

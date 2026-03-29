@@ -1,4 +1,4 @@
-package com.hearttoheart.app.ui
+package com.yurishewchuk.hearttoheart.ui
 
 import android.app.KeyguardManager
 import android.content.Context
@@ -31,13 +31,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.hearttoheart.app.data.MessageCategory
-import com.hearttoheart.app.data.AccountSelectionRepository
-import com.hearttoheart.app.services.AlarmService
-import com.hearttoheart.app.data.PartnerPreferencesRepository
-import com.hearttoheart.app.ui.theme.CoralDark
-import com.hearttoheart.app.ui.theme.HeartToHeartTheme
-import com.hearttoheart.app.ui.theme.LifelineColor
+import com.yurishewchuk.hearttoheart.data.MessageCategory
+import com.yurishewchuk.hearttoheart.data.AccountSelectionRepository
+import com.yurishewchuk.hearttoheart.services.AlarmService
+import com.yurishewchuk.hearttoheart.data.PartnerPreferencesRepository
+import com.yurishewchuk.hearttoheart.ui.theme.CoralDark
+import com.yurishewchuk.hearttoheart.ui.theme.HeartToHeartTheme
+import com.yurishewchuk.hearttoheart.ui.theme.LifelineColor
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlin.math.roundToInt

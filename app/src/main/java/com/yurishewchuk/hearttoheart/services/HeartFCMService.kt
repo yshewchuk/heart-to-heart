@@ -1,14 +1,14 @@
-package com.hearttoheart.app.services
+package com.yurishewchuk.hearttoheart.services
 
 import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import com.hearttoheart.app.data.EncryptionHelper
-import com.hearttoheart.app.data.MessageCategory
-import com.hearttoheart.app.data.MessageHistory
-import com.hearttoheart.app.data.AccountSelectionRepository
-import com.hearttoheart.app.data.PairingRepository
-import com.hearttoheart.app.data.StoredMessage
+import com.yurishewchuk.hearttoheart.data.EncryptionHelper
+import com.yurishewchuk.hearttoheart.data.MessageCategory
+import com.yurishewchuk.hearttoheart.data.MessageHistory
+import com.yurishewchuk.hearttoheart.data.AccountSelectionRepository
+import com.yurishewchuk.hearttoheart.data.PairingRepository
+import com.yurishewchuk.hearttoheart.data.StoredMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

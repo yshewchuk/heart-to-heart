@@ -1,4 +1,4 @@
-package com.hearttoheart.app.services
+package com.yurishewchuk.hearttoheart.services
 
 import android.app.KeyguardManager
 import android.app.Notification
@@ -21,15 +21,15 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.core.app.NotificationCompat
-import com.hearttoheart.app.HeartToHeartApp
-import com.hearttoheart.app.MainActivity
-import com.hearttoheart.app.R
-import com.hearttoheart.app.data.MessageCategory
-import com.hearttoheart.app.data.NotificationIcon
-import com.hearttoheart.app.data.AccountSelectionRepository
-import com.hearttoheart.app.data.PartnerPreferencesRepository
-import com.hearttoheart.app.data.PartnerPrefs
-import com.hearttoheart.app.ui.AlarmActivity
+import com.yurishewchuk.hearttoheart.HeartToHeartApp
+import com.yurishewchuk.hearttoheart.MainActivity
+import com.yurishewchuk.hearttoheart.R
+import com.yurishewchuk.hearttoheart.data.MessageCategory
+import com.yurishewchuk.hearttoheart.data.NotificationIcon
+import com.yurishewchuk.hearttoheart.data.AccountSelectionRepository
+import com.yurishewchuk.hearttoheart.data.PartnerPreferencesRepository
+import com.yurishewchuk.hearttoheart.data.PartnerPrefs
+import com.yurishewchuk.hearttoheart.ui.AlarmActivity
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 import android.graphics.Matrix
@@ -645,7 +645,7 @@ class AlarmService : Service() {
         const val EXTRA_CATEGORY = "extra_category"
         const val EXTRA_NOTE = "extra_note"
         const val EXTRA_ACCOUNT_UID = "extra_account_uid"
-        const val ACTION_DISMISS = "com.hearttoheart.ACTION_DISMISS"
+        const val ACTION_DISMISS = "com.yurishewchuk.hearttoheart.ACTION_DISMISS"
         
         /**
          * Start the alarm service with the given category.

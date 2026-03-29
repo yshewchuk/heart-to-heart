@@ -1,4 +1,4 @@
-package com.hearttoheart.app.data
+package com.yurishewchuk.hearttoheart.data
 
 /**
  * Defines the four notification categories with their properties.

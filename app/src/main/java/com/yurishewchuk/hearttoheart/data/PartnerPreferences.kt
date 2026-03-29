@@ -1,4 +1,4 @@
-package com.hearttoheart.app.data
+package com.yurishewchuk.hearttoheart.data
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -11,7 +11,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.exifinterface.media.ExifInterface
-import com.hearttoheart.app.R
+import com.yurishewchuk.hearttoheart.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map

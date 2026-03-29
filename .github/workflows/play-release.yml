@@ -9,9 +9,8 @@
 # Optional repository variable:
 #   PLAY_TRACK — internal | alpha | beta | production (default: internal)
 #
-# Versioning: VERSION_CODE is set from the commit count on main so each upload
-#   has a monotonically increasing versionCode (required by Play). Ensure this
-#   stays above any version already live if you used manual codes before.
+# Versioning: VERSION_CODE from git commit count; VERSION_NAME defaults in Gradle
+#   to 1.0.<versionCode>. Override with VERSION_NAME env if needed.
 
 name: Play release
 
@@ -51,6 +50,15 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Accept SDK licenses
+        run: yes | sdkmanager --licenses
+
+      - name: Install platform and build-tools
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Write SDK path for Gradle
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+
       - name: Place google-services.json for CI
         run: cp .github/ci/google-services.placeholder.json app/google-services.json
 
@@ -60,10 +68,11 @@ jobs:
         run: |
           echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.keystore"
 
-      - name: Version code from git history
+      - name: Version code and name from git history
         run: |
           VC=$(git rev-list --count HEAD)
           echo "VERSION_CODE=$VC" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=1.0.$VC" >> "$GITHUB_ENV"
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -80,7 +89,7 @@ jobs:
         uses: r0adkll/upload-google-play@v1.1.3
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: com.hearttoheart.app
+          packageName: com.yurishewchuk.hearttoheart
           releaseFiles: app/build/outputs/bundle/release/app-release.aab
           track: ${{ vars.PLAY_TRACK != '' && vars.PLAY_TRACK || 'internal' }}
           status: completed
