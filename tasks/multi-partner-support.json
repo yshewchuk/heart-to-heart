@@ -26,18 +26,54 @@
     },
     "architecture": "## Auth Model: One Anonymous Account Per Pairing\n\n```\nDevice\n├── UserAccount #1 (Firebase Anonymous UID A)\n│   └── Paired with: Bob\n│   └── Encryption key: key_AB\n│   └── Message history: messages_A\n├── UserAccount #2 (Firebase Anonymous UID B)\n│   └── Paired with: Carol\n│   └── Encryption key: key_BC\n└── UserAccount #3 (Firebase Anonymous UID C)\n    └── Paired with: Alex (work)\n    └── Encryption key: key_AX\n```\n\nWhen the user taps \"Pair with New User\", the app creates a new anonymous Firebase auth account. The QR code embeds that new account's UID. Once that account completes pairing, it is never reused for another pairing — a future \"Pair with New User\" creates yet another fresh account.\n\n## QR Code Format\n\n```\nheart-to-heart://pair?uid=ANONYMOUS_UID_A&key=KEY_A\n```\n\n- `ANONYMOUS_UID_A` — Fresh Firebase anonymous UID created at QR generation time\n- `KEY_A` — Encryption key generated for this account\n\nThe QR does not contain the device's stable UID. This means an old QR is useless to anyone who scans it later — it points to an account that has already paired and cannot initiate new pairings.\n\n## Local Storage Schema (DataStore)\n\n```\nUSER_ACCOUNTS: Map<anonymousUid, UserAccountEntry>\n  where UserAccountEntry = { pairedPartnerUid?, pairedAt?, encryptionKey?, displayName? }\n\nSELECTED_ACCOUNT_UID: string  // which account is currently active for sending\n```\n\nEach account entry is created at QR generation time (unpaired), and updated at pairing completion (with partner info).\n\n## One-Time QR Enforcement\n\nWhen \"Pair with New User\" is tapped:\n1. `FirebaseAuth.signInAnonymously()` → new account with UID `A`\n2. `PairingRepository.sendPairingRequest(A, targetUserId, key_A)`\n3. Account `A` is saved to DataStore as \"pending\"\n\nWhen a pairing request for account `A` is accepted:\n1. `PairingRepository.completePairing(A, partner)` → saves partner info to account `A`'s local entry\n2. Account `A` is now \"paired\"\n\nIf anyone re-scans the old QR for account `A`:\n- The QR points to account `A`'s UID\n- But account `A` already has a partner — `sendPairingRequest` for an already-paired account should be rejected (return error or no-op)\n- The old QR is inert\n\n## Message Sending\n\nWhen the user selects a partner from the UI and sends:\n1. Look up the active `UserAccount` for that partner\n2. Call `MessageSender.sendMessage(account, partner, message)` using that account's UID and encryption key\n3. The Cloud Function receives the message with `senderUid = account.UID`\n\n## FCM Routing (HeartFCMService)\n\nIncoming FCM payload already contains `senderUid`. The app:\n1. Looks up which local account matches `senderUid`\n2. Routes to the correct partner context (nickname, avatar, message history)\n\n## Partner Selector UI\n\n- Horizontal strip of avatars at top of HomeScreen\n- Tapping an avatar selects that account → all send actions target that partner\n- Selected account highlighted\n- Badge or label shows partner nickname",
     "affectedAreas": [
-      { "path": "app/src/main/java/com/hearttoheart/app/data/PairingRepository.kt", "note": "create new anonymous account per pairing, manage per-account pairing state, check if account already paired" },
-      { "path": "app/src/main/java/com/hearttoheart/app/data/PartnerPreferencesRepository.kt", "note": "keyed by anonymous UID" },
-      { "path": "app/src/main/java/com/hearttoheart/app/data/MessageHistory.kt", "note": "keyed by anonymous UID (each account has its own messages)" },
-      { "path": "app/src/main/java/com/hearttoheart/app/data/MessageSender.kt", "note": "send using specific account UID" },
-      { "path": "app/src/main/java/com/hearttoheart/app/MainActivity.kt", "note": "manage list of accounts, selected account state" },
-      { "path": "app/src/main/java/com/hearttoheart/app/ui/screens/HomeScreen.kt", "note": "partner selector strip" },
-      { "path": "app/src/main/java/com/hearttoheart/app/ui/screens/HistoryScreen.kt", "note": "filter by selected account" },
-      { "path": "app/src/main/java/com/hearttoheart/app/ui/screens/SettingsScreen.kt", "note": "per-account settings, unpair" },
-      { "path": "app/src/main/java/com/hearttoheart/app/ui/screens/ShowQRScreen.kt", "note": "generate new anonymous account at QR creation time" },
-      { "path": "app/src/main/java/com/hearttoheart/app/ui/screens/ScanQRScreen.kt", "note": "send pairing request from the anonymous account created at QR scan time" },
-      { "path": "app/src/main/java/com/hearttoheart/app/services/HeartFCMService.kt", "note": "route incoming messages to correct account/partner" },
-      { "path": "functions/src/index.ts", "note": "no changes needed (already validates sender UID matches auth)" }
+      {
+        "path": "app/src/main/java/com/hearttoheart/app/data/PairingRepository.kt",
+        "note": "create new anonymous account per pairing, manage per-account pairing state, check if account already paired"
+      },
+      {
+        "path": "app/src/main/java/com/hearttoheart/app/data/PartnerPreferencesRepository.kt",
+        "note": "keyed by anonymous UID"
+      },
+      {
+        "path": "app/src/main/java/com/hearttoheart/app/data/MessageHistory.kt",
+        "note": "keyed by anonymous UID (each account has its own messages)"
+      },
+      {
+        "path": "app/src/main/java/com/hearttoheart/app/data/MessageSender.kt",
+        "note": "send using specific account UID"
+      },
+      {
+        "path": "app/src/main/java/com/hearttoheart/app/MainActivity.kt",
+        "note": "manage list of accounts, selected account state"
+      },
+      {
+        "path": "app/src/main/java/com/hearttoheart/app/ui/screens/HomeScreen.kt",
+        "note": "partner selector strip"
+      },
+      {
+        "path": "app/src/main/java/com/hearttoheart/app/ui/screens/HistoryScreen.kt",
+        "note": "filter by selected account"
+      },
+      {
+        "path": "app/src/main/java/com/hearttoheart/app/ui/screens/SettingsScreen.kt",
+        "note": "per-account settings, unpair"
+      },
+      {
+        "path": "app/src/main/java/com/hearttoheart/app/ui/screens/ShowQRScreen.kt",
+        "note": "generate new anonymous account at QR creation time"
+      },
+      {
+        "path": "app/src/main/java/com/hearttoheart/app/ui/screens/ScanQRScreen.kt",
+        "note": "send pairing request from the anonymous account created at QR scan time"
+      },
+      {
+        "path": "app/src/main/java/com/hearttoheart/app/services/HeartFCMService.kt",
+        "note": "route incoming messages to correct account/partner"
+      },
+      {
+        "path": "functions/src/index.ts",
+        "note": "no changes needed (already validates sender UID matches auth)"
+      }
     ],
     "userExperience": "### Zero Partners\nHomeScreen shows \"Get Started\" prompt. Pair button reads \"Pair with Partner\".\n\n### ≥1 Partner\nHomeScreen shows horizontal partner selector strip. Pair button reads \"Pair with New User\". Button hidden when 10 partners reached.\n\n### Sending a Message\nSelect target partner from strip → select category → optionally add note → send. Each partner has its own encryption key and message history.\n\n### Unpairing\nSettings screen lists all accounts with partner name, nickname, and unpair option. Unpair deletes local account data (including all its messages)."
   },
@@ -58,8 +94,8 @@
       "title": "Auth model — new anonymous account per pairing",
       "description": "Change PairingRepository to create a fresh Firebase anonymous account at QR generation time, not reuse a device-level account. QR contains the new account's UID. Save accounts in DataStore as a Map keyed by anonymous UID. Add check to reject pairing requests from already-paired accounts. Update ShowQRScreen and ScanQRScreen to use the new account-based flow.",
       "estimate": "~5 files, ~350 lines",
-      "status": "planned",
-      "started": false,
+      "status": "in_progress",
+      "started": true,
       "dependencies": [],
       "agentPrompt": "Implement PR 1: Change PairingRepository to create a fresh Firebase anonymous account at QR generation time, not reuse a device-level account. QR contains the new account's UID. Save accounts in DataStore as a Map keyed by anonymous UID. Add check to reject pairing requests from already-paired accounts. Update ShowQRScreen and ScanQRScreen to use the new account-based flow."
     },
@@ -70,7 +106,9 @@
       "estimate": "~5 files, ~500 lines",
       "status": "planned",
       "started": false,
-      "dependencies": ["PR 1"],
+      "dependencies": [
+        "PR 1"
+      ],
       "agentPrompt": "Implement PR 2: Add partner/account selector strip to HomeScreen. Update MainActivity to hold selected account UID state and list of accounts. Update HistoryScreen to show messages for selected account. Add per-account settings and unpair flow to SettingsScreen. Update HeartFCMService to route incoming messages to the correct account. Depends on PR 1."
     },
     {
@@ -80,7 +118,10 @@
       "estimate": "~1 file, ~80 lines",
       "status": "planned",
       "started": false,
-      "dependencies": ["PR 1", "PR 2"],
+      "dependencies": [
+        "PR 1",
+        "PR 2"
+      ],
       "agentPrompt": "Implement PR 3: Update README to reflect new multi-partner architecture. Update \"Next Steps\" checklist to reflect completed features. Depends on PRs 1–2."
     }
   ]
