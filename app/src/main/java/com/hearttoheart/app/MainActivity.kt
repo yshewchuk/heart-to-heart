@@ -376,7 +376,7 @@ class MainActivity : ComponentActivity() {
                     this,
                     message.category,
                     message.note.ifEmpty { "Message from your love 💕" },
-                    activeAccountUid
+                    accountUid
                 )
             }, 5000) // 5 second delay
         }

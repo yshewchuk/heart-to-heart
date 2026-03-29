@@ -84,11 +84,12 @@ class AlarmService : Service() {
             return START_NOT_STICKY
         }
         
-        val category = intent?.getStringExtra(EXTRA_CATEGORY)?.let { 
+        val startIntent = intent
+        val category = startIntent?.getStringExtra(EXTRA_CATEGORY)?.let { 
             MessageCategory.valueOf(it) 
         } ?: MessageCategory.NUDGE
-        val note = intent?.getStringExtra(EXTRA_NOTE) ?: ""
-        loadPreferencesForAccount(resolveAlarmAccountUid(intent))
+        val note = startIntent?.getStringExtra(EXTRA_NOTE) ?: ""
+        loadPreferencesForAccount(resolveAlarmAccountUid(startIntent))
         
         currentCategory = category
         
@@ -96,14 +97,14 @@ class AlarmService : Service() {
         acquireWakeLock()
         
         // Start as foreground service with notification
-        startForeground(NOTIFICATION_ID, createNotification(category, note))
+        startForeground(NOTIFICATION_ID, createNotification(category, note, startIntent))
         
         // Play alarm based on category
         when (category) {
             MessageCategory.FLUTTER -> playFlutter(note)
             MessageCategory.NUDGE -> playNudge(note)
             MessageCategory.HEARTBEAT -> playHeartbeat(note)
-            MessageCategory.LIFELINE -> playLifeline(note)
+            MessageCategory.LIFELINE -> playLifeline(note, startIntent)
         }
         
         return START_NOT_STICKY
@@ -122,7 +123,11 @@ class AlarmService : Service() {
         return !isScreenOn || isLocked
     }
     
-    private fun createNotification(category: MessageCategory, note: String): Notification {
+    private fun createNotification(
+        category: MessageCategory,
+        note: String,
+        startIntent: Intent?
+    ): Notification {
         val channelId = category.channelId
         
         // Intent to open main activity when notification is tapped
@@ -138,7 +143,9 @@ class AlarmService : Service() {
         val fullScreenIntent = Intent(this, AlarmActivity::class.java).apply {
             putExtra(AlarmActivity.EXTRA_CATEGORY, category.name)
             putExtra(AlarmActivity.EXTRA_NOTE, note)
-            intent?.getStringExtra(EXTRA_ACCOUNT_UID)?.let { putExtra(AlarmActivity.EXTRA_ACCOUNT_UID, it) }
+            startIntent?.getStringExtra(EXTRA_ACCOUNT_UID)?.let { uid ->
+                putExtra(AlarmActivity.EXTRA_ACCOUNT_UID, uid)
+            }
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val fullScreenPendingIntent = PendingIntent.getActivity(
@@ -336,22 +343,22 @@ class AlarmService : Service() {
         }
     }
     
-    private fun playLifeline(note: String) {
+    private fun playLifeline(note: String, startIntent: Intent?) {
         // Save original volume
         originalVolume = audioManager?.getStreamVolume(AudioManager.STREAM_ALARM) ?: 5
         
         // Only launch full screen activity if screen is off or locked
         // Otherwise, the heads-up notification is sufficient
         if (isScreenOffOrLocked()) {
-            val intent = Intent(this, AlarmActivity::class.java).apply {
+            val activityIntent = Intent(this, AlarmActivity::class.java).apply {
                 putExtra(AlarmActivity.EXTRA_CATEGORY, MessageCategory.LIFELINE.name)
                 putExtra(AlarmActivity.EXTRA_NOTE, note)
-                this@AlarmService.intent?.getStringExtra(EXTRA_ACCOUNT_UID)?.let {
-                    putExtra(AlarmActivity.EXTRA_ACCOUNT_UID, it)
+                startIntent?.getStringExtra(EXTRA_ACCOUNT_UID)?.let { uid ->
+                    putExtra(AlarmActivity.EXTRA_ACCOUNT_UID, uid)
                 }
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
-            startActivity(intent)
+            startActivity(activityIntent)
         }
         
         // Start volume escalation
