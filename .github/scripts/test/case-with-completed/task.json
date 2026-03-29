@@ -1,0 +1,23 @@
+{
+  "id": "deps",
+  "title": "Deps",
+  "overview": {
+    "summary": "Second PR after first completed",
+    "scope": { "in": ["a"], "out": ["b"] }
+  },
+  "pullRequests": [
+    {
+      "id": 0,
+      "title": "Done",
+      "status": "completed",
+      "agentPrompt": "x"
+    },
+    {
+      "id": 1,
+      "title": "Next",
+      "description": "Should not appear",
+      "status": "planned",
+      "agentPrompt": "Do the next thing."
+    }
+  ]
+}

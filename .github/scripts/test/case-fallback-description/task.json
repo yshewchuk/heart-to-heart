@@ -1,0 +1,13 @@
+{
+  "id": "fallback",
+  "title": "Fallback",
+  "overview": {},
+  "pullRequests": [
+    {
+      "id": 0,
+      "title": "No prompt field",
+      "status": "planned",
+      "description": "Use description when agentPrompt absent."
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+## Task overview
+
+{}
+
+## Pull requests completed before this one
+
+(none)
+
+## Your assignment — implement this pull request
+
+**PR 0: No prompt field**
+
+Use description when agentPrompt absent.
+
+Follow the repository AGENTS.md and skill workflow. Commit and push your work; open or update the pull request as appropriate.
