@@ -58,31 +58,25 @@ class PairingRepository(private val context: Context) {
         val encryptionKey: String? = null,
         val displayName: String? = null
     ) {
-        fun toJson(): JSONObject = JSONObject().apply {
-            put("anonymousUid", anonymousUid)
-            put("pairedPartnerUid", pairedPartnerUid)
-            put("pairedAt", pairedAt)
-            put("encryptionKey", encryptionKey)
-            put("displayName", displayName)
-        }
+        fun toJson(): JSONObject = JSONObject(
+            mapOf(
+                "anonymousUid" to anonymousUid,
+                "pairedPartnerUid" to pairedPartnerUid,
+                "pairedAt" to pairedAt,
+                "encryptionKey" to encryptionKey,
+                "displayName" to displayName
+            )
+        )
 
         companion object {
-            fun fromJson(json: JSONObject): UserAccountEntry? {
-                return try {
-                    UserAccountEntry(
-                        anonymousUid = json.getString("anonymousUid"),
-                        pairedPartnerUid = json.optString("pairedPartnerUid", null),
-                        pairedAt = if (json.has("pairedAt") && !json.isNull("pairedAt")) {
-                            json.getLong("pairedAt")
-                        } else {
-                            null
-                        },
-                        encryptionKey = json.optString("encryptionKey", null),
-                        displayName = json.optString("displayName", null)
-                    )
-                } catch (e: Exception) {
-                    null
-                }
+            fun fromJson(json: JSONObject): UserAccountEntry {
+                return UserAccountEntry(
+                    anonymousUid = json.getString("anonymousUid"),
+                    pairedPartnerUid = json.optString("pairedPartnerUid").ifBlank { null },
+                    pairedAt = if (json.has("pairedAt") && !json.isNull("pairedAt")) json.getLong("pairedAt") else null,
+                    encryptionKey = json.optString("encryptionKey").ifBlank { null },
+                    displayName = json.optString("displayName").ifBlank { null }
+                )
             }
         }
     }
@@ -306,63 +300,27 @@ class PairingRepository(private val context: Context) {
         val myFcmToken = getFcmToken() ?: return Result.failure(Exception("No FCM token"))
         
         return try {
-            // 1. Update the request status to accepted and include our encryption key
-            val updateData = hashMapOf<String, Any>(
-                "status" to "accepted"
+            updateIncomingRequestAsAccepted(myUserId, request.requesterUid, myEncryptionKey)
+            linkUserToPartner(myUserId, request.requesterUid)
+            sendReciprocalPairingConfirmation(
+                requesterUid = request.requesterUid,
+                accepterUid = myUserId,
+                accepterFcmToken = myFcmToken,
+                accepterEncryptionKey = myEncryptionKey
             )
-            if (myEncryptionKey != null) {
-                updateData["accepterEncryptionKey"] = myEncryptionKey
-            }
-            
-            firestore.collection(USERS_COLLECTION)
-                .document(myUserId)
-                .collection(PAIRING_REQUESTS_COLLECTION)
-                .document(request.requesterUid)
-                .update(updateData)
-                .await()
-            
-            // 2. Update my user document with partner info
-            firestore.collection(USERS_COLLECTION)
-                .document(myUserId)
-                .update("partnerId", request.requesterUid)
-                .await()
-            
-            // 3. Send a reciprocal pairing confirmation to the requester
-            val confirmation = hashMapOf(
-                "requesterUid" to myUserId,
-                "requesterFcmToken" to myFcmToken,
-                "requesterEncryptionKey" to (myEncryptionKey ?: ""),  // Our key for them to receive
-                "requestedAt" to com.google.firebase.Timestamp.now(),
-                "status" to "accepted"  // Already accepted
-            )
-            
-            firestore.collection(USERS_COLLECTION)
-                .document(request.requesterUid)
-                .collection(PAIRING_REQUESTS_COLLECTION)
-                .document(myUserId)
-                .set(confirmation)
-                .await()
-            
-            // 4. Save partner locally with their encryption key
-            // We use THEIR key when sending TO them
             savePartnerLocally(
                 Partner(
                     uid = request.requesterUid,
                     fcmToken = request.requesterFcmToken,
                     displayName = "My Love",
                     pairedAt = System.currentTimeMillis(),
-                    encryptionKey = request.requesterEncryptionKey  // Their key
+                    encryptionKey = request.requesterEncryptionKey
                 )
             )
-            val storedAccount = getUserAccounts().first()[myUserId]
-            saveOrUpdateUserAccount(
-                UserAccountEntry(
-                    anonymousUid = myUserId,
-                    pairedPartnerUid = request.requesterUid,
-                    pairedAt = System.currentTimeMillis(),
-                    encryptionKey = myEncryptionKey ?: storedAccount?.encryptionKey,
-                    displayName = storedAccount?.displayName
-                )
+            markUserAccountAsPaired(
+                accountUid = myUserId,
+                partnerUid = request.requesterUid,
+                encryptionKeyOverride = myEncryptionKey
             )
             
             Log.d(TAG, "Pairing accepted with: ${request.requesterUid}, encryption: ${request.requesterEncryptionKey != null}")
@@ -480,16 +438,7 @@ class PairingRepository(private val context: Context) {
                 encryptionKey = partnerEncryptionKey
             )
             savePartnerLocally(partner)
-            val storedAccount = getUserAccounts().first()[myUserId]
-            saveOrUpdateUserAccount(
-                UserAccountEntry(
-                    anonymousUid = myUserId,
-                    pairedPartnerUid = partnerUserId,
-                    pairedAt = System.currentTimeMillis(),
-                    encryptionKey = storedAccount?.encryptionKey,
-                    displayName = storedAccount?.displayName
-                )
-            )
+            markUserAccountAsPaired(accountUid = myUserId, partnerUid = partnerUserId)
             
             // Clear temporary key storage
             pendingEncryptionKey = null
@@ -592,7 +541,7 @@ class PairingRepository(private val context: Context) {
             val root = JSONObject(rawJson)
             root.keys().asSequence().mapNotNull { uid ->
                 val accountJson = root.optJSONObject(uid) ?: return@mapNotNull null
-                UserAccountEntry.fromJson(accountJson)?.let { uid to it }
+                uid to UserAccountEntry.fromJson(accountJson)
             }.toMap()
         } catch (_: Exception) {
             emptyMap()
@@ -605,6 +554,69 @@ class PairingRepository(private val context: Context) {
             root.put(uid, account.toJson())
         }
         return root.toString()
+    }
+
+    private suspend fun updateIncomingRequestAsAccepted(
+        accepterUid: String,
+        requesterUid: String,
+        accepterEncryptionKey: String?
+    ) {
+        val updateData = hashMapOf<String, Any>("status" to "accepted")
+        if (accepterEncryptionKey != null) {
+            updateData["accepterEncryptionKey"] = accepterEncryptionKey
+        }
+        firestore.collection(USERS_COLLECTION)
+            .document(accepterUid)
+            .collection(PAIRING_REQUESTS_COLLECTION)
+            .document(requesterUid)
+            .update(updateData)
+            .await()
+    }
+
+    private suspend fun linkUserToPartner(userUid: String, partnerUid: String) {
+        firestore.collection(USERS_COLLECTION)
+            .document(userUid)
+            .update("partnerId", partnerUid)
+            .await()
+    }
+
+    private suspend fun sendReciprocalPairingConfirmation(
+        requesterUid: String,
+        accepterUid: String,
+        accepterFcmToken: String,
+        accepterEncryptionKey: String?
+    ) {
+        val confirmation = hashMapOf(
+            "requesterUid" to accepterUid,
+            "requesterFcmToken" to accepterFcmToken,
+            "requesterEncryptionKey" to (accepterEncryptionKey ?: ""),
+            "requestedAt" to com.google.firebase.Timestamp.now(),
+            "status" to "accepted"
+        )
+
+        firestore.collection(USERS_COLLECTION)
+            .document(requesterUid)
+            .collection(PAIRING_REQUESTS_COLLECTION)
+            .document(accepterUid)
+            .set(confirmation)
+            .await()
+    }
+
+    private suspend fun markUserAccountAsPaired(
+        accountUid: String,
+        partnerUid: String,
+        encryptionKeyOverride: String? = null
+    ) {
+        val storedAccount = getUserAccounts().first()[accountUid]
+        saveOrUpdateUserAccount(
+            UserAccountEntry(
+                anonymousUid = accountUid,
+                pairedPartnerUid = partnerUid,
+                pairedAt = System.currentTimeMillis(),
+                encryptionKey = encryptionKeyOverride ?: storedAccount?.encryptionKey,
+                displayName = storedAccount?.displayName
+            )
+        )
     }
     
     /**
