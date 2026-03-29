@@ -5,7 +5,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
@@ -34,6 +37,7 @@ import com.hearttoheart.app.data.HeartMessage
 import com.hearttoheart.app.data.MessageCategory
 import com.hearttoheart.app.data.Partner
 import com.hearttoheart.app.data.PartnerPrefs
+import com.hearttoheart.app.data.PairingRepository.UserAccountEntry
 import com.hearttoheart.app.data.StoredMessage
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -45,10 +49,12 @@ import androidx.compose.material.icons.filled.Settings
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    partner: Partner?,
-    partnerPrefs: PartnerPrefs = PartnerPrefs(),
+    accounts: Map<String, UserAccountEntry>,
+    selectedAccountUid: String?,
+    selectedPartnerPrefs: PartnerPrefs = PartnerPrefs(),
     lastReceivedMessage: StoredMessage? = null,
     onSendMessage: (HeartMessage) -> Unit,
+    onSelectAccount: (String) -> Unit,
     onPairClick: () -> Unit,
     onHistoryClick: () -> Unit,
     onSettingsClick: () -> Unit
@@ -57,6 +63,20 @@ fun HomeScreen(
     var noteText by remember { mutableStateOf("") }
     var showNoteInput by remember { mutableStateOf(false) }
     
+    val selectedAccount = selectedAccountUid?.let { accounts[it] }
+    val partner = selectedAccount?.pairedPartnerUid?.let { partnerUid ->
+        Partner(
+            uid = partnerUid,
+            fcmToken = "",
+            displayName = selectedAccount.displayName ?: "My Love",
+            pairedAt = selectedAccount.pairedAt ?: 0L,
+            encryptionKey = selectedAccount.encryptionKey
+        )
+    }
+    val pairedAccounts = remember(accounts) {
+        accounts.values.filter { it.pairedPartnerUid != null }.sortedBy { it.anonymousUid }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -76,11 +96,13 @@ fun HomeScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onPairClick) {
-                        Icon(
-                            imageVector = Icons.Default.QrCode,
-                            contentDescription = "Pair Device"
-                        )
+                    if (pairedAccounts.size < 10) {
+                        IconButton(onClick = onPairClick) {
+                            Icon(
+                                imageVector = Icons.Default.QrCode,
+                                contentDescription = if (pairedAccounts.isEmpty()) "Pair with Partner" else "Pair with New User"
+                            )
+                        }
                     }
                     IconButton(onClick = onHistoryClick) {
                         Icon(
@@ -88,8 +110,7 @@ fun HomeScreen(
                             contentDescription = "History"
                         )
                     }
-                    // Only show settings when partner is connected
-                    if (partner != null) {
+                    if (pairedAccounts.isNotEmpty()) {
                         IconButton(onClick = onSettingsClick) {
                             Icon(
                                 imageVector = Icons.Default.Settings,
@@ -130,10 +151,31 @@ fun HomeScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Spacer(modifier = Modifier.height(topSpacing))
+
+                if (pairedAccounts.isNotEmpty()) {
+                    PartnerSelectorStrip(
+                        accounts = pairedAccounts,
+                        selectedAccountUid = selectedAccountUid,
+                        selectedPartnerPrefs = selectedPartnerPrefs,
+                        onSelectAccount = onSelectAccount
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    if (pairedAccounts.size < 10) {
+                        TextButton(onClick = onPairClick) {
+                            Icon(
+                                imageVector = Icons.Default.QrCode,
+                                contentDescription = null
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Pair with New User")
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
                 
                 // Partner Avatar
                 if (partner != null) {
-                    PartnerAvatar(partner = partner, prefs = partnerPrefs, size = profileSize)
+                    PartnerAvatar(partner = partner, prefs = selectedPartnerPrefs, size = profileSize)
                 } else {
                     NoPairPrompt(onPairClick = onPairClick, size = profileSize)
                 }
@@ -242,7 +284,7 @@ fun HomeScreen(
                     // Show recipient info or pairing prompt
                     Spacer(modifier = Modifier.height(8.dp))
                     if (partner != null) {
-                        val recipientName = partnerPrefs.nickname.ifBlank { partner.displayName }
+                        val recipientName = selectedPartnerPrefs.nickname.ifBlank { partner.displayName }
                         Text(
                             text = "Will send to $recipientName",
                             style = MaterialTheme.typography.labelSmall,
@@ -438,6 +480,48 @@ private fun LastReceivedCard(message: StoredMessage) {
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PartnerSelectorStrip(
+    accounts: List<UserAccountEntry>,
+    selectedAccountUid: String?,
+    selectedPartnerPrefs: PartnerPrefs,
+    onSelectAccount: (String) -> Unit
+) {
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp)
+    ) {
+        items(accounts, key = { it.anonymousUid }) { account ->
+            val isSelected = selectedAccountUid == account.anonymousUid
+            val label = if (isSelected) {
+                selectedPartnerPrefs.nickname.ifBlank { account.displayName ?: "Partner" }
+            } else {
+                account.displayName ?: "Partner"
+            }
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = if (isSelected) Coral.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                modifier = Modifier.clickable { onSelectAccount(account.anonymousUid) }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "❤️")
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
             }
         }
     }

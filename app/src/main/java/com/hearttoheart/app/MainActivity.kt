@@ -23,10 +23,12 @@ import com.hearttoheart.app.data.HeartMessage
 import com.hearttoheart.app.data.MessageCategory
 import com.hearttoheart.app.data.MessageHistory
 import com.hearttoheart.app.data.MessageSender
+import com.hearttoheart.app.data.AccountSelectionRepository
 import com.hearttoheart.app.data.PairingRepository
 import com.hearttoheart.app.data.Partner
 import com.hearttoheart.app.data.PartnerPreferencesRepository
 import com.hearttoheart.app.data.PartnerPrefs
+import com.hearttoheart.app.data.PairingRepository.UserAccountEntry
 import com.hearttoheart.app.data.StoredMessage
 import com.hearttoheart.app.services.AlarmService
 import com.hearttoheart.app.ui.screens.HistoryScreen
@@ -60,6 +62,7 @@ class MainActivity : ComponentActivity() {
     
     private lateinit var auth: FirebaseAuth
     private lateinit var pairingRepository: PairingRepository
+    private lateinit var accountSelectionRepository: AccountSelectionRepository
     private lateinit var messageSender: MessageSender
     private lateinit var messageHistory: MessageHistory
     private lateinit var partnerPrefsRepository: PartnerPreferencesRepository
@@ -81,6 +84,7 @@ class MainActivity : ComponentActivity() {
         
         // Initialize repositories
         pairingRepository = PairingRepository(this)
+        accountSelectionRepository = AccountSelectionRepository(this)
         messageHistory = MessageHistory(this)
         messageSender = MessageSender(this)
         partnerPrefsRepository = PartnerPreferencesRepository(this)
@@ -101,36 +105,79 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
-                    var partner by remember { mutableStateOf<Partner?>(null) }
-                    var partnerPrefs by remember { mutableStateOf(PartnerPrefs()) }
+                    var accounts by remember { mutableStateOf<Map<String, UserAccountEntry>>(emptyMap()) }
+                    var selectedAccountUid by remember { mutableStateOf<String?>(null) }
+                    var partnerPrefsByAccount by remember { mutableStateOf<Map<String, PartnerPrefs>>(emptyMap()) }
                     var lastReceivedMessage by remember { mutableStateOf<StoredMessage?>(null) }
                     var allMessages by remember { mutableStateOf<List<StoredMessage>>(emptyList()) }
                     val scope = rememberCoroutineScope()
                     
-                    // Load partner from local storage
+                    // Load account list and selected account from local storage
                     LaunchedEffect(Unit) {
-                        pairingRepository.getPartner().collect { savedPartner ->
-                            partner = savedPartner
+                        accountSelectionRepository.getPairedAccounts().collect { savedAccounts ->
+                            accounts = savedAccounts
+                        }
+                    }
+                    LaunchedEffect(Unit) {
+                        accountSelectionRepository.getSelectedAccountUid().collect { selectedUid ->
+                            selectedAccountUid = selectedUid
                         }
                     }
                     
-                    // Load partner preferences
-                    LaunchedEffect(Unit) {
-                        partnerPrefsRepository.getPreferences().collect { prefs ->
-                            partnerPrefs = prefs
+                    val pairedAccountUids = remember(accounts) { accounts.keys.sorted() }
+                    val activeAccountUid = remember(selectedAccountUid, pairedAccountUids) {
+                        when {
+                            selectedAccountUid != null && pairedAccountUids.contains(selectedAccountUid) -> selectedAccountUid
+                            pairedAccountUids.isNotEmpty() -> pairedAccountUids.first()
+                            else -> null
                         }
                     }
-                    
-                    // Load last received message
-                    LaunchedEffect(Unit) {
-                        messageHistory.getLastReceivedMessage().collect { message ->
+                    val activePartner = remember(activeAccountUid, accounts) {
+                        activeAccountUid?.let { uid ->
+                            accounts[uid]?.pairedPartnerUid?.let { partnerUid ->
+                                Partner(
+                                    uid = partnerUid,
+                                    fcmToken = "",
+                                    displayName = accounts[uid]?.displayName ?: "My Love",
+                                    pairedAt = accounts[uid]?.pairedAt ?: 0L,
+                                    encryptionKey = accounts[uid]?.encryptionKey
+                                )
+                            }
+                        }
+                    }
+                    val activePartnerPrefs = remember(activeAccountUid, partnerPrefsByAccount) {
+                        activeAccountUid?.let { partnerPrefsByAccount[it] } ?: PartnerPrefs()
+                    }
+
+                    // Ensure selected account exists.
+                    LaunchedEffect(activeAccountUid, selectedAccountUid) {
+                        if (activeAccountUid != null && activeAccountUid != selectedAccountUid) {
+                            accountSelectionRepository.setSelectedAccountUid(activeAccountUid)
+                        }
+                    }
+
+                    // Load preferences and messages for selected account.
+                    LaunchedEffect(activeAccountUid, pairedAccountUids) {
+                        if (activeAccountUid == null) {
+                            lastReceivedMessage = null
+                            allMessages = emptyList()
+                            partnerPrefsByAccount = emptyMap()
+                            return@LaunchedEffect
+                        }
+
+                        partnerPrefsRepository.getPreferences(activeAccountUid).collect { prefs ->
+                            partnerPrefsByAccount = partnerPrefsByAccount + (activeAccountUid to prefs)
+                        }
+                    }
+                    LaunchedEffect(activeAccountUid) {
+                        if (activeAccountUid == null) return@LaunchedEffect
+                        messageHistory.getLastReceivedMessage(activeAccountUid).collect { message ->
                             lastReceivedMessage = message
                         }
                     }
-                    
-                    // Load all messages for history
-                    LaunchedEffect(Unit) {
-                        messageHistory.getMessages().collect { messages ->
+                    LaunchedEffect(activeAccountUid) {
+                        if (activeAccountUid == null) return@LaunchedEffect
+                        messageHistory.getMessages(activeAccountUid).collect { messages ->
                             allMessages = messages
                         }
                     }
@@ -138,11 +185,17 @@ class MainActivity : ComponentActivity() {
                     when (currentScreen) {
                         Screen.Home -> {
                             HomeScreen(
-                                partner = partner,
-                                partnerPrefs = partnerPrefs,
+                                accounts = accounts,
+                                selectedAccountUid = activeAccountUid,
+                                selectedPartnerPrefs = activePartnerPrefs,
                                 lastReceivedMessage = lastReceivedMessage,
                                 onSendMessage = { message ->
-                                    sendMessage(message, partner)
+                                    sendMessage(message, activeAccountUid, activePartner)
+                                },
+                                onSelectAccount = { accountUid ->
+                                    scope.launch {
+                                        accountSelectionRepository.setSelectedAccountUid(accountUid)
+                                    }
                                 },
                                 onPairClick = {
                                     currentScreen = Screen.Pairing
@@ -159,20 +212,33 @@ class MainActivity : ComponentActivity() {
                         Screen.History -> {
                             HistoryScreen(
                                 messages = allMessages,
+                                activePartnerName = activePartnerPrefs.nickname.ifBlank {
+                                    activePartner?.displayName ?: "Selected Partner"
+                                },
                                 onNavigateBack = { currentScreen = Screen.Home }
                             )
                         }
                         
                         Screen.Settings -> {
                             SettingsScreen(
-                                currentPrefs = partnerPrefs,
+                                accounts = accounts,
+                                selectedAccountUid = activeAccountUid,
+                                currentPrefs = activePartnerPrefs,
                                 onNavigateBack = { currentScreen = Screen.Home },
+                                onSelectAccount = { accountUid ->
+                                    scope.launch {
+                                        accountSelectionRepository.setSelectedAccountUid(accountUid)
+                                    }
+                                },
                                 onPrefsUpdated = {
                                     // Preferences are updated via DataStore and will be reflected automatically
                                 },
-                                onUnpair = {
-                                    // Clear partner and go back home
-                                    currentScreen = Screen.Home
+                                onUnpair = { accountUid ->
+                                    scope.launch {
+                                        messageHistory.clearHistory(accountUid)
+                                        accountSelectionRepository.unpairAccount(accountUid)
+                                        currentScreen = Screen.Home
+                                    }
                                 }
                             )
                         }
@@ -264,10 +330,10 @@ class MainActivity : ComponentActivity() {
     /**
      * Send a message to partner via Cloud Function, or locally for testing.
      */
-    private fun sendMessage(message: HeartMessage, partner: Partner?) {
+    private fun sendMessage(message: HeartMessage, accountUid: String?, partner: Partner?) {
         Log.d(TAG, "Sending message: ${message.category.name} - ${message.note}")
         
-        if (partner != null) {
+        if (partner != null && accountUid != null) {
             // Send to partner via Cloud Function
             Toast.makeText(
                 this,
@@ -276,7 +342,7 @@ class MainActivity : ComponentActivity() {
             ).show()
             
             sendScope.launch {
-                val result = messageSender.sendMessage(partner, message)
+                val result = messageSender.sendMessage(accountUid, partner, message)
                 
                 if (result.isSuccess) {
                     Log.d(TAG, "Message sent successfully!")

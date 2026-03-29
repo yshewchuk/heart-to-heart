@@ -30,6 +30,7 @@ class PairingRepository(private val context: Context) {
     
     private val firestore = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
+    private val accountSelectionRepository = AccountSelectionRepository(context)
     
     private var pairingListener: ListenerRegistration? = null
     
@@ -130,6 +131,7 @@ class PairingRepository(private val context: Context) {
                 displayName = displayName
             )
             saveOrUpdateUserAccount(entry)
+            setSelectedAccountUid(uid)
 
             Log.d(TAG, "Created anonymous pairing account: $uid")
             Result.success(entry)
@@ -528,6 +530,18 @@ class PairingRepository(private val context: Context) {
             parseUserAccounts(prefs[USER_ACCOUNTS_KEY])
         }
     }
+
+    fun getSelectedAccountUid(): Flow<String?> = accountSelectionRepository.getSelectedAccountUid()
+
+    suspend fun setSelectedAccountUid(accountUid: String?) {
+        accountSelectionRepository.setSelectedAccountUid(accountUid)
+    }
+
+    fun getPairedAccounts(): Flow<Map<String, UserAccountEntry>> =
+        accountSelectionRepository.getPairedAccounts()
+
+    suspend fun unpairAccount(accountUid: String): Result<Unit> =
+        accountSelectionRepository.unpairAccount(accountUid)
 
     private suspend fun saveOrUpdateUserAccount(account: UserAccountEntry) {
         context.dataStore.edit { prefs ->

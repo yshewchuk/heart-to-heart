@@ -43,18 +43,26 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
+    accounts: Map<String, PairingRepository.UserAccountEntry>,
+    selectedAccountUid: String?,
     currentPrefs: PartnerPrefs,
     onNavigateBack: () -> Unit,
+    onSelectAccount: (String) -> Unit,
     onPrefsUpdated: () -> Unit,
-    onUnpair: () -> Unit = {}
+    onUnpair: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val repository = remember { PartnerPreferencesRepository(context) }
-    val pairingRepository = remember { PairingRepository(context) }
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
+    val pairedAccounts = remember(accounts) {
+        accounts.values.filter { it.pairedPartnerUid != null }.sortedBy { it.anonymousUid }
+    }
+    val activeAccountUid = remember(selectedAccountUid, pairedAccounts) {
+        selectedAccountUid ?: pairedAccounts.firstOrNull()?.anonymousUid
+    }
     
-    var nickname by remember(currentPrefs) { mutableStateOf(currentPrefs.nickname) }
+    var nickname by remember(currentPrefs, activeAccountUid) { mutableStateOf(currentPrefs.nickname) }
     var customNickname by remember { mutableStateOf("") }
     var showCustomInput by remember { mutableStateOf(false) }
     var selectedIcon by remember(currentPrefs) { mutableStateOf(currentPrefs.notificationIcon) }
@@ -67,10 +75,10 @@ fun SettingsScreen(
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        if (uri != null) {
+        if (uri != null && activeAccountUid != null) {
             tempSelectedUri = uri // Show immediately while saving
             scope.launch {
-                repository.setProfilePicture(uri)
+                repository.setProfilePicture(activeAccountUid, uri)
                 // After saving, the path will be updated via the prefs flow
                 tempSelectedUri = null
                 onPrefsUpdated()
@@ -113,6 +121,34 @@ fun SettingsScreen(
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            if (pairedAccounts.size > 1) {
+                Text(
+                    text = "Select Partner",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(vertical = 4.dp)
+                ) {
+                    items(pairedAccounts) { account ->
+                        val isSelected = account.anonymousUid == activeAccountUid
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onSelectAccount(account.anonymousUid) },
+                            label = { Text(account.displayName ?: "Partner") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Coral,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+
             // Profile Picture Section
             Text(
                 text = "Partner's Photo",
@@ -175,7 +211,9 @@ fun SettingsScreen(
                     profilePicturePath = null
                     tempSelectedUri = null
                     scope.launch {
-                        repository.setProfilePicture(null)
+                        if (activeAccountUid != null) {
+                            repository.setProfilePicture(activeAccountUid, null)
+                        }
                         onPrefsUpdated()
                     }
                 }) {
@@ -209,7 +247,9 @@ fun SettingsScreen(
                             nickname = presetName
                             showCustomInput = false
                             scope.launch {
-                                repository.setNickname(presetName)
+                                if (activeAccountUid != null) {
+                                    repository.setNickname(activeAccountUid, presetName)
+                                }
                                 onPrefsUpdated()
                             }
                         },
@@ -263,7 +303,9 @@ fun SettingsScreen(
                             if (customNickname.isNotBlank()) {
                                 nickname = customNickname
                                 scope.launch {
-                                    repository.setNickname(customNickname)
+                                    if (activeAccountUid != null) {
+                                        repository.setNickname(activeAccountUid, customNickname)
+                                    }
                                     onPrefsUpdated()
                                 }
                             }
@@ -315,7 +357,9 @@ fun SettingsScreen(
                             .clickable {
                                 selectedIcon = icon
                                 scope.launch {
-                                    repository.setNotificationIcon(icon)
+                                    if (activeAccountUid != null) {
+                                        repository.setNotificationIcon(activeAccountUid, icon)
+                                    }
                                     onPrefsUpdated()
                                 }
                             }
@@ -427,11 +471,14 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        scope.launch {
-                            pairingRepository.clearPartner()
-                            repository.clearPreferences()
+                        if (activeAccountUid == null) {
                             showUnpairDialog = false
-                            onUnpair()
+                            return@TextButton
+                        }
+                        scope.launch {
+                            repository.clearPreferences(activeAccountUid)
+                            showUnpairDialog = false
+                            onUnpair(activeAccountUid)
                         }
                     },
                     colors = ButtonDefaults.textButtonColors(

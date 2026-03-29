@@ -27,6 +27,7 @@ import java.util.*
 @Composable
 fun HistoryScreen(
     messages: List<StoredMessage>,
+    activePartnerName: String,
     onNavigateBack: () -> Unit
 ) {
     // Filter to last 7 days
@@ -48,7 +49,16 @@ fun HistoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Signal History", fontWeight = FontWeight.Bold) },
+                title = {
+                    Column {
+                        Text("Signal History", fontWeight = FontWeight.Bold)
+                        Text(
+                            text = activePartnerName,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                        )
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
@@ -135,7 +145,6 @@ fun HistoryScreen(
 
 @Composable
 private fun DayHeader(timestamp: Long) {
-    val now = System.currentTimeMillis()
     val today = Calendar.getInstance().apply {
         set(Calendar.HOUR_OF_DAY, 0)
         set(Calendar.MINUTE, 0)
