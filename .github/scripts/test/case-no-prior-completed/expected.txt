@@ -1,0 +1,15 @@
+## Task overview
+
+{"summary":"Only one PR in flight."}
+
+## Pull requests completed before this one
+
+(none)
+
+## Your assignment — implement this pull request
+
+**PR 0: First PR**
+
+Implement the first slice.
+
+Follow the repository AGENTS.md and skill workflow. Commit and push your work; open or update the pull request as appropriate.

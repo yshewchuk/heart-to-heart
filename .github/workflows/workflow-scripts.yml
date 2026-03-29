@@ -1,0 +1,25 @@
+name: Workflow scripts
+
+on:
+  pull_request:
+    paths:
+      - '.github/scripts/**'
+      - '.github/workflows/next-task-agent.yml'
+      - '.github/workflows/workflow-scripts.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/scripts/**'
+      - '.github/workflows/next-task-agent.yml'
+      - '.github/workflows/workflow-scripts.yml'
+
+jobs:
+  next-task-prompt-tests:
+    name: Next task agent prompt tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run golden-file tests
+        run: ./.github/scripts/run-next-task-prompt-tests.sh
