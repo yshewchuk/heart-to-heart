@@ -7,4 +7,4 @@
 -keep class com.google.android.gms.** { *; }
 
 # Keep model classes
--keep class com.hearttoheart.app.data.** { *; }
+-keep class com.yurishewchuk.hearttoheart.data.** { *; }

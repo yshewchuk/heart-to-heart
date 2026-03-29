@@ -56,7 +56,7 @@ This keeps each pairing isolated while reusing the existing Firestore schema bas
 
 2. **Configure Firebase**
    - Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com)
-   - Add an Android app with package name `com.hearttoheart.app`
+   - Add an Android app with package name `com.yurishewchuk.hearttoheart`
    - Download `google-services.json` and place it in `app/`
    - Enable Authentication (Anonymous) and Cloud Firestore
 
@@ -91,7 +91,7 @@ The MVP includes a **test mode** that works without pairing:
 
 ```
 app/src/main/
-├── java/com/hearttoheart/app/
+├── java/com/yurishewchuk/hearttoheart/
 │   ├── HeartToHeartApp.kt      # Application + notification channels
 │   ├── MainActivity.kt          # Main entry point
 │   ├── data/

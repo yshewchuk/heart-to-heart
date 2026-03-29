@@ -1,4 +1,4 @@
-package com.hearttoheart.app.ui.screens
+package com.yurishewchuk.hearttoheart.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -19,7 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.hearttoheart.app.ui.theme.Coral
+import com.yurishewchuk.hearttoheart.ui.theme.Coral
 
 /**
  * Screen to choose between showing your QR code or scanning a partner's QR code.

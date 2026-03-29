@@ -31,7 +31,7 @@ Heart-to-Heart is an Android native app (Kotlin, Jetpack Compose) with a Firebas
 
 ### Important caveats
 
-- **`google-services.json`** is git-ignored. Place the real file from Firebase at `app/google-services.json` for local builds. GitHub Actions writes it from the repository secret **`GOOGLE_SERVICES_JSON`** (same JSON contents as the file) before `./gradlew assembleRelease`.
+- **`google-services.json`** is git-ignored. Place the real file from Firebase (Android app id **`com.yurishewchuk.hearttoheart`**) at `app/google-services.json` for local builds. GitHub Actions writes it from the repository secret **`GOOGLE_SERVICES_JSON`** (same JSON contents as the file) before `./gradlew assembleRelease`.
 - **No unit test source files** currently exist in `app/src/test/` or `app/src/androidTest/`. The `./gradlew test` task succeeds with `NO-SOURCE`.
 - The Kotlin compiler produces warnings about unused variables in `MainActivity.kt`, `CategoryButton.kt`, `HistoryScreen.kt`, and `ScanQRScreen.kt`. These are pre-existing and not introduced by environment setup.
 - Android instrumentation tests (`connectedAndroidTest`) require a physical device or emulator and cannot run in this headless cloud VM.

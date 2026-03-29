@@ -1,4 +1,4 @@
-package com.hearttoheart.app.ui.screens
+package com.yurishewchuk.hearttoheart.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -33,17 +33,17 @@ import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.rememberAsyncImagePainter
-import com.hearttoheart.app.data.HeartMessage
-import com.hearttoheart.app.data.MessageCategory
-import com.hearttoheart.app.data.Partner
-import com.hearttoheart.app.data.PartnerPrefs
-import com.hearttoheart.app.data.PairingRepository.UserAccountEntry
-import com.hearttoheart.app.data.StoredMessage
+import com.yurishewchuk.hearttoheart.data.HeartMessage
+import com.yurishewchuk.hearttoheart.data.MessageCategory
+import com.yurishewchuk.hearttoheart.data.Partner
+import com.yurishewchuk.hearttoheart.data.PartnerPrefs
+import com.yurishewchuk.hearttoheart.data.PairingRepository.UserAccountEntry
+import com.yurishewchuk.hearttoheart.data.StoredMessage
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import com.hearttoheart.app.ui.components.CategoryButton
-import com.hearttoheart.app.ui.theme.Coral
+import com.yurishewchuk.hearttoheart.ui.components.CategoryButton
+import com.yurishewchuk.hearttoheart.ui.theme.Coral
 import androidx.compose.material.icons.filled.Settings
 
 @OptIn(ExperimentalMaterial3Api::class)

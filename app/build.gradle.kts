@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,15 +7,45 @@ plugins {
 }
 
 android {
-    namespace = "com.hearttoheart.app"
+    namespace = "com.yurishewchuk.hearttoheart"
     compileSdk = 35
 
+    val keystorePropertiesFile = rootProject.file("keystore.properties")
+    val keystoreProperties = Properties()
+    if (keystorePropertiesFile.exists()) {
+        keystoreProperties.load(keystorePropertiesFile.inputStream())
+    }
+
+    signingConfigs {
+        create("upload") {
+            val envStore = System.getenv("RELEASE_KEYSTORE_PATH")
+            when {
+                !envStore.isNullOrEmpty() -> {
+                    storeFile = file(envStore)
+                    storePassword = System.getenv("KEYSTORE_PASSWORD")
+                    keyAlias = System.getenv("KEY_ALIAS")
+                    keyPassword = System.getenv("KEY_PASSWORD")
+                }
+                keystorePropertiesFile.exists() -> {
+                    val path = keystoreProperties.getProperty("storeFile") ?: return@create
+                    storeFile = rootProject.file(path)
+                    storePassword = keystoreProperties.getProperty("storePassword")
+                    keyAlias = keystoreProperties.getProperty("keyAlias")
+                    keyPassword = keystoreProperties.getProperty("keyPassword")
+                }
+            }
+        }
+    }
+
     defaultConfig {
-        applicationId = "com.hearttoheart.app"
+        applicationId = "com.yurishewchuk.hearttoheart"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
-        versionName = "1.0.0"
+
+        System.getenv("VERSION_CODE")?.toIntOrNull()?.let { versionCode = it }
+        versionName = System.getenv("VERSION_NAME")?.takeIf { it.isNotBlank() }
+            ?: "1.0.$versionCode"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -28,6 +60,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfigs.getByName("upload").storeFile?.let {
+                signingConfig = signingConfigs.getByName("upload")
+            }
         }
     }
     

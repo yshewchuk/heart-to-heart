@@ -1,4 +1,4 @@
-package com.hearttoheart.app.ui.screens
+package com.yurishewchuk.hearttoheart.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -34,10 +34,10 @@ import androidx.core.content.ContextCompat
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
-import com.hearttoheart.app.data.PairingRepository
-import com.hearttoheart.app.data.PairingStatus
-import com.hearttoheart.app.data.generateVerificationCode
-import com.hearttoheart.app.ui.theme.Coral
+import com.yurishewchuk.hearttoheart.data.PairingRepository
+import com.yurishewchuk.hearttoheart.data.PairingStatus
+import com.yurishewchuk.hearttoheart.data.generateVerificationCode
+import com.yurishewchuk.hearttoheart.ui.theme.Coral
 import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 

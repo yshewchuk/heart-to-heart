@@ -1,0 +1,108 @@
+# Builds a signed release AAB on every push to main and uploads it to Google Play.
+#
+# Required repository secrets:
+#   PLAY_SERVICE_ACCOUNT_JSON — JSON for a Play Console service account with
+#     "Release to production, exclude devices, and use Play App Signing" (or your target track).
+#   GOOGLE_SERVICES_JSON — Full contents of Firebase google-services.json for
+#     com.yurishewchuk.hearttoheart (same as Android build workflow).
+#   RELEASE_KEYSTORE_BASE64 — Base64 of the upload keystore .jks file.
+#   KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD — Keystore credentials.
+#
+# Optional repository variable:
+#   PLAY_TRACK — internal | alpha | beta | production (default: internal)
+#
+# Versioning: VERSION_CODE from git commit count; VERSION_NAME defaults in Gradle
+#   to 1.0.<versionCode>. Override with VERSION_NAME env if needed.
+
+name: Play release
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - '.github/scripts/**'
+      - 'tasks/**'
+      - 'functions/**'
+  workflow_dispatch:
+
+concurrency:
+  group: play-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and upload to Play
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept SDK licenses
+        run: yes | sdkmanager --licenses
+
+      - name: Install platform and build-tools
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Write SDK path for Gradle
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+
+      - name: Write google-services.json from secret
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "${GOOGLE_SERVICES_JSON}" ]; then
+            echo "Error: GOOGLE_SERVICES_JSON repository secret is not set or empty."
+            exit 1
+          fi
+          printf '%s\n' "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          if ! python3 -c "import json; json.load(open('app/google-services.json'))" 2>/dev/null; then
+            echo "Error: GOOGLE_SERVICES_JSON is not valid JSON."
+            exit 1
+          fi
+
+      - name: Decode release keystore
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.keystore"
+
+      - name: Version code and name from git history
+        run: |
+          VC=$(git rev-list --count HEAD)
+          echo "VERSION_CODE=$VC" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=1.0.$VC" >> "$GITHUB_ENV"
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build release bundle
+        env:
+          RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/upload.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew bundleRelease --no-daemon --stacktrace
+
+      - name: Upload to Google Play
+        uses: r0adkll/upload-google-play@v1.1.3
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.yurishewchuk.hearttoheart
+          releaseFiles: app/build/outputs/bundle/release/app-release.aab
+          track: ${{ vars.PLAY_TRACK != '' && vars.PLAY_TRACK || 'internal' }}
+          status: completed

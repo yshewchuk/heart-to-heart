@@ -1,4 +1,4 @@
-package com.hearttoheart.app.ui.components
+package com.yurishewchuk.hearttoheart.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -18,8 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.hearttoheart.app.data.MessageCategory
-import com.hearttoheart.app.ui.theme.*
+import com.yurishewchuk.hearttoheart.data.MessageCategory
+import com.yurishewchuk.hearttoheart.ui.theme.*
 
 /**
  * A circular button for selecting a message category.

@@ -1,4 +1,4 @@
-package com.hearttoheart.app.data
+package com.yurishewchuk.hearttoheart.data
 
 import android.content.Context
 import androidx.datastore.core.DataStore

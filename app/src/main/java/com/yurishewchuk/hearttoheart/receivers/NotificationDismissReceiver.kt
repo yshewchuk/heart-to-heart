@@ -1,9 +1,9 @@
-package com.hearttoheart.app.receivers
+package com.yurishewchuk.hearttoheart.receivers
 
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import com.hearttoheart.app.services.AlarmService
+import com.yurishewchuk.hearttoheart.services.AlarmService
 
 /**
  * Receives broadcast to dismiss/acknowledge the alarm notification.
@@ -19,6 +19,6 @@ class NotificationDismissReceiver : BroadcastReceiver() {
     }
     
     companion object {
-        const val ACTION_DISMISS = "com.hearttoheart.ACTION_DISMISS"
+        const val ACTION_DISMISS = "com.yurishewchuk.hearttoheart.ACTION_DISMISS"
     }
 }
