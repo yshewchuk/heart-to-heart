@@ -1,0 +1,8 @@
+{
+  "html_url": "https://github.com/example/heart-to-heart/pull/20",
+  "head": { "ref": "feature/branch" },
+  "base": { "ref": "main" },
+  "title": "Test PR",
+  "body": "PR description line"
+}
+

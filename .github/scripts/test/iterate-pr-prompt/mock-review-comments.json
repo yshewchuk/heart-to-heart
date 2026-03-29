@@ -1,1 +1,22 @@
-[]
+[
+  {
+    "id": 99,
+    "pull_request_review_id": 10,
+    "path": ".github/scripts/test/overview-case-minimal/expected-overview.txt",
+    "line": 3,
+    "side": "RIGHT",
+    "user": { "login": "yshewchuk" },
+    "body": "The summaries should be markdown. /iterate",
+    "diff_hunk": "@@ -0,0 +1,8 @@\n+## Task overview\n+\n+{\"summary\":\"Only one PR in flight.\"}"
+  },
+  {
+    "id": 100,
+    "pull_request_review_id": 11,
+    "path": "other.txt",
+    "line": 1,
+    "side": "RIGHT",
+    "user": { "login": "reviewer-other" },
+    "body": "A comment from another review that should be excluded.",
+    "diff_hunk": "@@ -0,0 +1 @@\n+ignored"
+  }
+]

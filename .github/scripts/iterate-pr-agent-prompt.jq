@@ -4,10 +4,21 @@
 #     --slurpfile event EVENT.json \
 #     --argjson pr PR.json \
 #     --argjson review_comments REVIEW_COMMENTS.json \
+#     --argjson resolved_comment_ids '[123,456]' \
 #     --arg actor LOGIN
 
 ($event[0]) as $event |
-($review_comments | map(
+def is_unresolved_review_comment($resolved_id_lookup):
+  .id as $id |
+  ($id == null) or ($resolved_id_lookup[($id | tostring)] == null);
+
+($resolved_comment_ids
+  | reduce .[] as $id ({}; . + {($id | tostring): true})
+) as $resolved_id_lookup |
+
+($review_comments
+  | map(select(is_unresolved_review_comment($resolved_id_lookup)))
+  | map(
     (
       "File: " + (.path // "<unknown>") +
       (if (.line != null) then (" (line " + (.line|tostring) + ")") else "" end) +

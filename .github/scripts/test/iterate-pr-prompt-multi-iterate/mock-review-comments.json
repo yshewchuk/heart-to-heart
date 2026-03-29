@@ -1,0 +1,32 @@
+[
+  {
+    "id": 100,
+    "pull_request_review_id": 55,
+    "path": "a.txt",
+    "line": 1,
+    "side": "RIGHT",
+    "user": { "login": "yshewchuk" },
+    "body": "First /iterate comment",
+    "diff_hunk": "@@ -0,0 +1 @@\n+x"
+  },
+  {
+    "id": 101,
+    "pull_request_review_id": 55,
+    "path": "b.txt",
+    "line": 2,
+    "side": "RIGHT",
+    "user": { "login": "yshewchuk" },
+    "body": "Second /iterate comment",
+    "diff_hunk": "@@ -0,0 +1 @@\n+y"
+  },
+  {
+    "id": 102,
+    "pull_request_review_id": 55,
+    "path": "c.txt",
+    "line": 3,
+    "side": "RIGHT",
+    "user": { "login": "reviewer-a" },
+    "body": "Non-iterate comment in same review",
+    "diff_hunk": "@@ -0,0 +1 @@\n+z"
+  }
+]

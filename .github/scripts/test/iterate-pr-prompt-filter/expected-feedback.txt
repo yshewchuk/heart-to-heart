@@ -10,24 +10,20 @@ PR description line
 
 Triggered Review Comment Context (inline in diff hunk):
 ```diff
---- a/.github/scripts/test/overview-case-minimal/expected-overview.txt
-+++ b/.github/scripts/test/overview-case-minimal/expected-overview.txt
-@@ -0,0 +1,8 @@
-+## Task overview
-+
-+{"summary":"Only one PR in flight."}
-========== Comment on .github/scripts/test/overview-case-minimal/expected-overview.txt (line 3) ==========
+--- a/c.txt
++++ b/c.txt
+@@ -0,0 +1 @@
++z
+========== Comment on c.txt (line 1) ==========
 Author: test-actor
-The summaries should be markdown. /iterate
+Iterate please. /iterate
 ========== End comment ==========
 ```
 
 Code Review Comments:
-File: .github/scripts/test/overview-case-minimal/expected-overview.txt (line 3) [RIGHT] by yshewchuk
-@@ -0,0 +1,8 @@
-+## Task overview
-+
-+{"summary":"Only one PR in flight."}
-The summaries should be markdown. /iterate
+File: a.txt (line 1) [RIGHT] by reviewer-a
+@@ -0,0 +1 @@
++x
+Still open feedback.
 
 Please review the feedback provided in the comments and implement the requested changes. Since the target PR URL has been provided, make sure to commit and push the changes directly to the existing PR branch (feature/branch).

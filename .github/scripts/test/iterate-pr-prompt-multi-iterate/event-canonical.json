@@ -1,0 +1,13 @@
+{
+  "pull_request": { "number": 20 },
+  "comment": {
+    "id": 100,
+    "pull_request_review_id": 55,
+    "path": "a.txt",
+    "line": 1,
+    "body": "First /iterate comment",
+    "diff_hunk": "@@ -0,0 +1 @@\n+x",
+    "user": { "login": "yshewchuk" }
+  }
+}
+
