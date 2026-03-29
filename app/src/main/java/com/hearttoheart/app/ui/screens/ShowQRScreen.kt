@@ -61,46 +61,41 @@ fun ShowQRScreen(
     // Our encryption key - used when partner sends messages TO us
     var myEncryptionKey by remember { mutableStateOf<String?>(null) }
     
-    // Initialize user document and generate QR code
+    // Create a fresh anonymous account for this pairing and generate QR code
     LaunchedEffect(Unit) {
         try {
             Log.d(TAG, "Starting QR screen initialization...")
-            
-            // Wait a moment for Firebase Auth to be ready
-            var attempts = 0
-            while (repository.getCurrentUserId() == null && attempts < 10) {
-                Log.d(TAG, "Waiting for auth... attempt $attempts")
-                delay(500)
-                attempts++
-            }
-            
-            // Get current user ID
-            userId = repository.getCurrentUserId()
-            Log.d(TAG, "User ID: $userId")
-            
-            if (userId != null) {
-                // Try to initialize user document in Firestore
-                val initResult = repository.initializeUserDocument()
-                if (initResult.isFailure) {
-                    Log.w(TAG, "Failed to init user doc: ${initResult.exceptionOrNull()?.message}")
-                    // Continue anyway - we can still show QR code
-                }
-                
-                // Generate encryption key for E2E encryption
-                myEncryptionKey = EncryptionHelper.generateKey()
-                Log.d(TAG, "Generated encryption key")
-                
-                // Generate QR code with deep link including encryption key
-                val deepLink = "heart-to-heart://pair?uid=$userId&key=$myEncryptionKey"
-                Log.d(TAG, "Generating QR for: heart-to-heart://pair?uid=$userId&key=<hidden>")
-                qrBitmap = generateQRCode(deepLink, 512)
-                Log.d(TAG, "QR bitmap generated: ${qrBitmap != null}")
+
+            val createResult = repository.createFreshAnonymousAccountForPairing()
+            if (createResult.isFailure) {
+                error = createResult.exceptionOrNull()?.message ?: "Failed to create pairing account"
                 isLoading = false
-            } else {
-                Log.e(TAG, "User not signed in after waiting")
-                error = "Not signed in. Please restart the app."
-                isLoading = false
+                return@LaunchedEffect
             }
+
+            // Allow auth state to settle after sign-out/sign-in.
+            delay(300)
+
+            userId = createResult.getOrNull()
+            Log.d(TAG, "Fresh pairing user ID: $userId")
+
+            // Try to initialize user document in Firestore
+            val initResult = repository.initializeUserDocument()
+            if (initResult.isFailure) {
+                Log.w(TAG, "Failed to init user doc: ${initResult.exceptionOrNull()?.message}")
+                // Continue anyway - we can still show QR code
+            }
+
+            // Generate encryption key for E2E encryption
+            myEncryptionKey = EncryptionHelper.generateKey()
+            Log.d(TAG, "Generated encryption key")
+
+            // Generate QR code with deep link including encryption key
+            val deepLink = "heart-to-heart://pair?uid=$userId&key=$myEncryptionKey"
+            Log.d(TAG, "Generating QR for: heart-to-heart://pair?uid=$userId&key=<hidden>")
+            qrBitmap = generateQRCode(deepLink, 512)
+            Log.d(TAG, "QR bitmap generated: ${qrBitmap != null}")
+            isLoading = false
         } catch (e: Exception) {
             Log.e(TAG, "Error initializing QR screen", e)
             error = e.message ?: "Failed to initialize"

@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
+import org.json.JSONObject
 
 // DataStore for local preferences
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "heart_to_heart_prefs")
@@ -34,12 +35,17 @@ class PairingRepository(private val context: Context) {
     
     companion object {
         private const val TAG = "PairingRepository"
+        private const val MAX_ACCOUNTS = 10
         
         // Firestore collections
         private const val USERS_COLLECTION = "users"
         private const val PAIRING_REQUESTS_COLLECTION = "pairingRequests"
         
         // DataStore keys
+        private val USER_ACCOUNTS_JSON_KEY = stringPreferencesKey("user_accounts_json")
+        private val SELECTED_ACCOUNT_UID_KEY = stringPreferencesKey("selected_account_uid")
+
+        // Legacy single-partner keys (kept temporarily for backward compatibility)
         private val PARTNER_UID_KEY = stringPreferencesKey("partner_uid")
         private val PARTNER_FCM_TOKEN_KEY = stringPreferencesKey("partner_fcm_token")
         private val PARTNER_NAME_KEY = stringPreferencesKey("partner_name")
@@ -47,15 +53,147 @@ class PairingRepository(private val context: Context) {
         private val PARTNER_ENCRYPTION_KEY = stringPreferencesKey("partner_encryption_key")
         private val MY_DECRYPTION_KEY = stringPreferencesKey("my_decryption_key")
     }
+
+    /**
+     * Local per-pairing account entry.
+     * Each entry is keyed by the anonymous account UID used for that pairing.
+     */
+    data class UserAccountEntry(
+        val uid: String,
+        val partnerUid: String? = null,
+        val partnerFcmToken: String? = null,
+        val partnerDisplayName: String? = null,
+        val pairedAt: Long? = null,
+        val partnerEncryptionKey: String? = null,
+        val myDecryptionKey: String? = null
+    ) {
+        fun isPaired(): Boolean = partnerUid != null
+
+        fun toJson(): JSONObject = JSONObject().apply {
+            put("uid", uid)
+            if (partnerUid != null) put("partnerUid", partnerUid)
+            if (partnerFcmToken != null) put("partnerFcmToken", partnerFcmToken)
+            if (partnerDisplayName != null) put("partnerDisplayName", partnerDisplayName)
+            if (pairedAt != null) put("pairedAt", pairedAt)
+            if (partnerEncryptionKey != null) put("partnerEncryptionKey", partnerEncryptionKey)
+            if (myDecryptionKey != null) put("myDecryptionKey", myDecryptionKey)
+        }
+
+        companion object {
+            fun fromJson(json: JSONObject): UserAccountEntry? {
+                return try {
+                    val uid = json.getString("uid")
+                    UserAccountEntry(
+                        uid = uid,
+                        partnerUid = json.optString("partnerUid").takeIf { it.isNotBlank() },
+                        partnerFcmToken = json.optString("partnerFcmToken").takeIf { it.isNotBlank() },
+                        partnerDisplayName = json.optString("partnerDisplayName").takeIf { it.isNotBlank() },
+                        pairedAt = json.optLong("pairedAt").takeIf { it != 0L },
+                        partnerEncryptionKey = json.optString("partnerEncryptionKey").takeIf { it.isNotBlank() },
+                        myDecryptionKey = json.optString("myDecryptionKey").takeIf { it.isNotBlank() }
+                    )
+                } catch (e: Exception) {
+                    null
+                }
+            }
+        }
+    }
+
+    private fun parseAccounts(json: String): Map<String, UserAccountEntry> {
+        return try {
+            val obj = JSONObject(json)
+            obj.keys().asSequence().mapNotNull { uid ->
+                val entry = obj.optJSONObject(uid)?.let { UserAccountEntry.fromJson(it) }
+                if (entry != null) uid to entry else null
+            }.toMap()
+        } catch (_: Exception) {
+            emptyMap()
+        }
+    }
+
+    private fun serializeAccounts(accounts: Map<String, UserAccountEntry>): String {
+        val obj = JSONObject()
+        accounts.forEach { (uid, entry) ->
+            obj.put(uid, entry.toJson())
+        }
+        return obj.toString()
+    }
+
+    private suspend fun getAccountsMap(): Map<String, UserAccountEntry> {
+        val prefs = context.dataStore.data.first()
+        val json = prefs[USER_ACCOUNTS_JSON_KEY] ?: return emptyMap()
+        return parseAccounts(json)
+    }
+
+    private suspend fun setAccountsMap(accounts: Map<String, UserAccountEntry>) {
+        context.dataStore.edit { prefs ->
+            prefs[USER_ACCOUNTS_JSON_KEY] = serializeAccounts(accounts)
+        }
+    }
+
+    private suspend fun getSelectedAccountUid(): String? {
+        val prefs = context.dataStore.data.first()
+        return prefs[SELECTED_ACCOUNT_UID_KEY]
+    }
+
+    private suspend fun setSelectedAccountUid(uid: String) {
+        context.dataStore.edit { prefs ->
+            prefs[SELECTED_ACCOUNT_UID_KEY] = uid
+        }
+    }
+
+    private suspend fun migrateLegacyIfNeeded(currentUid: String) {
+        val prefs = context.dataStore.data.first()
+        if (prefs[USER_ACCOUNTS_JSON_KEY] != null) return
+
+        val legacyPartnerUid = prefs[PARTNER_UID_KEY] ?: return
+        val legacyPartnerToken = prefs[PARTNER_FCM_TOKEN_KEY] ?: return
+        val legacyPartnerName = prefs[PARTNER_NAME_KEY] ?: "My Love"
+        val legacyPairedAt = prefs[PARTNER_PAIRED_AT_KEY]?.toLongOrNull()
+        val legacyPartnerEncryptionKey = prefs[PARTNER_ENCRYPTION_KEY]
+        val legacyMyDecryptionKey = prefs[MY_DECRYPTION_KEY]
+
+        val migrated = UserAccountEntry(
+            uid = currentUid,
+            partnerUid = legacyPartnerUid,
+            partnerFcmToken = legacyPartnerToken,
+            partnerDisplayName = legacyPartnerName,
+            pairedAt = legacyPairedAt,
+            partnerEncryptionKey = legacyPartnerEncryptionKey,
+            myDecryptionKey = legacyMyDecryptionKey
+        )
+
+        setAccountsMap(mapOf(currentUid to migrated))
+        setSelectedAccountUid(currentUid)
+        Log.d(TAG, "Migrated legacy partner data into per-account map for uid=$currentUid")
+    }
     
     /**
-     * Save our own decryption key (used when receiving messages).
+     * Create a fresh anonymous account to be used for a new pairing.
+     * This signs out the currently active FirebaseAuth user and signs in again anonymously.
      */
-    suspend fun saveMyDecryptionKey(key: String) {
-        context.dataStore.edit { prefs ->
-            prefs[MY_DECRYPTION_KEY] = key
+    suspend fun createFreshAnonymousAccountForPairing(): Result<String> {
+        return try {
+            val existingAccounts = getAccountsMap()
+            if (existingAccounts.size >= MAX_ACCOUNTS) {
+                return Result.failure(Exception("Maximum pairings reached ($MAX_ACCOUNTS)"))
+            }
+
+            auth.signOut()
+            val result = auth.signInAnonymously().await()
+            val uid = result.user?.uid ?: return Result.failure(Exception("Failed to create anonymous account"))
+
+            val updated = existingAccounts.toMutableMap()
+            updated[uid] = UserAccountEntry(uid = uid)
+            setAccountsMap(updated)
+            setSelectedAccountUid(uid)
+
+            Log.d(TAG, "Created fresh anonymous account for pairing: $uid")
+            Result.success(uid)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to create anonymous account for pairing", e)
+            Result.failure(e)
         }
-        Log.d(TAG, "Saved my decryption key")
     }
     
     /**
@@ -63,8 +201,31 @@ class PairingRepository(private val context: Context) {
      */
     fun getMyDecryptionKey(): Flow<String?> {
         return context.dataStore.data.map { prefs ->
-            prefs[MY_DECRYPTION_KEY]
+            // Prefer per-account key if we can resolve selected uid, else fall back to legacy key.
+            val selected = prefs[SELECTED_ACCOUNT_UID_KEY]
+            val accountsJson = prefs[USER_ACCOUNTS_JSON_KEY]
+            if (selected != null && accountsJson != null) {
+                parseAccounts(accountsJson)[selected]?.myDecryptionKey
+            } else {
+                prefs[MY_DECRYPTION_KEY]
+            }
         }
+    }
+
+    /**
+     * Save our own decryption key (used when receiving messages) for the currently active account.
+     */
+    suspend fun saveMyDecryptionKey(key: String) {
+        val uid = getCurrentUserId() ?: return
+        val accounts = getAccountsMap().toMutableMap()
+        val existing = accounts[uid] ?: UserAccountEntry(uid = uid)
+        accounts[uid] = existing.copy(myDecryptionKey = key)
+        setAccountsMap(accounts)
+
+        // Legacy write (temporary)
+        context.dataStore.edit { prefs -> prefs[MY_DECRYPTION_KEY] = key }
+
+        Log.d(TAG, "Saved my decryption key for uid=$uid")
     }
     
     /**
@@ -93,6 +254,8 @@ class PairingRepository(private val context: Context) {
         val fcmToken = getFcmToken() ?: return Result.failure(Exception("No FCM token"))
         
         return try {
+            migrateLegacyIfNeeded(userId)
+
             val userDoc = hashMapOf(
                 "fcmToken" to fcmToken,
                 "updatedAt" to com.google.firebase.Timestamp.now()
@@ -123,6 +286,12 @@ class PairingRepository(private val context: Context) {
         val myUserId = getCurrentUserId() ?: return Result.failure(Exception("Not signed in"))
         val myFcmToken = getFcmToken() ?: return Result.failure(Exception("No FCM token"))
         
+        val accounts = getAccountsMap()
+        val myEntry = accounts[myUserId]
+        if (myEntry?.isPaired() == true) {
+            return Result.failure(Exception("This pairing code is no longer valid (account already paired). Create a new one."))
+        }
+
         if (targetUserId == myUserId) {
             return Result.failure(Exception("Cannot pair with yourself"))
         }
@@ -270,15 +439,14 @@ class PairingRepository(private val context: Context) {
             
             // 4. Save partner locally with their encryption key
             // We use THEIR key when sending TO them
-            savePartnerLocally(
-                Partner(
-                    uid = request.requesterUid,
-                    fcmToken = request.requesterFcmToken,
-                    displayName = "My Love",
-                    pairedAt = System.currentTimeMillis(),
-                    encryptionKey = request.requesterEncryptionKey  // Their key
-                )
+            val partner = Partner(
+                uid = request.requesterUid,
+                fcmToken = request.requesterFcmToken,
+                displayName = "My Love",
+                pairedAt = System.currentTimeMillis(),
+                encryptionKey = request.requesterEncryptionKey  // Their key
             )
+            savePartnerLocally(partner)
             
             Log.d(TAG, "Pairing accepted with: ${request.requesterUid}, encryption: ${request.requesterEncryptionKey != null}")
             Result.success(Unit)
@@ -411,6 +579,22 @@ class PairingRepository(private val context: Context) {
      * Save partner info to local DataStore.
      */
     suspend fun savePartnerLocally(partner: Partner) {
+        val myUid = getCurrentUserId()
+        if (myUid != null) {
+            val accounts = getAccountsMap().toMutableMap()
+            val existing = accounts[myUid] ?: UserAccountEntry(uid = myUid)
+            accounts[myUid] = existing.copy(
+                partnerUid = partner.uid,
+                partnerFcmToken = partner.fcmToken,
+                partnerDisplayName = partner.displayName,
+                pairedAt = partner.pairedAt,
+                partnerEncryptionKey = partner.encryptionKey
+            )
+            setAccountsMap(accounts)
+            setSelectedAccountUid(myUid)
+        }
+
+        // Legacy write (temporary)
         context.dataStore.edit { prefs ->
             prefs[PARTNER_UID_KEY] = partner.uid
             prefs[PARTNER_FCM_TOKEN_KEY] = partner.fcmToken
@@ -428,19 +612,38 @@ class PairingRepository(private val context: Context) {
      */
     fun getPartner(): Flow<Partner?> {
         return context.dataStore.data.map { prefs ->
-            val uid = prefs[PARTNER_UID_KEY] ?: return@map null
-            val fcmToken = prefs[PARTNER_FCM_TOKEN_KEY] ?: return@map null
-            val name = prefs[PARTNER_NAME_KEY] ?: "My Love"
-            val pairedAt = prefs[PARTNER_PAIRED_AT_KEY]?.toLongOrNull() ?: 0L
-            val encryptionKey = prefs[PARTNER_ENCRYPTION_KEY]
-            
-            Partner(
-                uid = uid,
-                fcmToken = fcmToken,
-                displayName = name,
-                pairedAt = pairedAt,
-                encryptionKey = encryptionKey
-            )
+            val selected = prefs[SELECTED_ACCOUNT_UID_KEY]
+            val accountsJson = prefs[USER_ACCOUNTS_JSON_KEY]
+            val entry = if (selected != null && accountsJson != null) {
+                parseAccounts(accountsJson)[selected]
+            } else {
+                null
+            }
+
+            if (entry?.partnerUid != null && entry.partnerFcmToken != null) {
+                Partner(
+                    uid = entry.partnerUid,
+                    fcmToken = entry.partnerFcmToken,
+                    displayName = entry.partnerDisplayName ?: "My Love",
+                    pairedAt = entry.pairedAt ?: 0L,
+                    encryptionKey = entry.partnerEncryptionKey
+                )
+            } else {
+                // Legacy fallback
+                val uid = prefs[PARTNER_UID_KEY] ?: return@map null
+                val fcmToken = prefs[PARTNER_FCM_TOKEN_KEY] ?: return@map null
+                val name = prefs[PARTNER_NAME_KEY] ?: "My Love"
+                val pairedAt = prefs[PARTNER_PAIRED_AT_KEY]?.toLongOrNull() ?: 0L
+                val encryptionKey = prefs[PARTNER_ENCRYPTION_KEY]
+
+                Partner(
+                    uid = uid,
+                    fcmToken = fcmToken,
+                    displayName = name,
+                    pairedAt = pairedAt,
+                    encryptionKey = encryptionKey
+                )
+            }
         }
     }
     
@@ -466,6 +669,24 @@ class PairingRepository(private val context: Context) {
      * Clear partner data (unpair).
      */
     suspend fun clearPartner() {
+        val myUid = getCurrentUserId()
+        if (myUid != null) {
+            val accounts = getAccountsMap().toMutableMap()
+            val existing = accounts[myUid]
+            if (existing != null) {
+                accounts[myUid] = existing.copy(
+                    partnerUid = null,
+                    partnerFcmToken = null,
+                    partnerDisplayName = null,
+                    pairedAt = null,
+                    partnerEncryptionKey = null,
+                    myDecryptionKey = null
+                )
+                setAccountsMap(accounts)
+            }
+        }
+
+        // Legacy clear (temporary)
         context.dataStore.edit { prefs ->
             prefs.remove(PARTNER_UID_KEY)
             prefs.remove(PARTNER_FCM_TOKEN_KEY)
@@ -474,7 +695,7 @@ class PairingRepository(private val context: Context) {
             prefs.remove(PARTNER_ENCRYPTION_KEY)
             prefs.remove(MY_DECRYPTION_KEY)
         }
-        Log.d(TAG, "Partner cleared")
+        Log.d(TAG, "Partner cleared for uid=$myUid")
     }
     
     /**

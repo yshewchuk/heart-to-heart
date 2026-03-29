@@ -81,8 +81,14 @@ fun ScanQRScreen(
         if (!hasCameraPermission) {
             permissionLauncher.launch(Manifest.permission.CAMERA)
         }
-        // Initialize user document
-        repository.initializeUserDocument()
+        // Ensure we have an auth session for this pairing attempt.
+        // For multi-account support we create a fresh anonymous account at scan time.
+        val created = repository.createFreshAnonymousAccountForPairing()
+        if (created.isSuccess) {
+            repository.initializeUserDocument()
+        } else {
+            error = created.exceptionOrNull()?.message ?: "Failed to prepare pairing"
+        }
     }
     
     // Listen for pairing status when we've sent a request
