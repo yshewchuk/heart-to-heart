@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
+import org.json.JSONObject
 
 // DataStore for local preferences
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "heart_to_heart_prefs")
@@ -46,6 +47,44 @@ class PairingRepository(private val context: Context) {
         private val PARTNER_PAIRED_AT_KEY = stringPreferencesKey("partner_paired_at")
         private val PARTNER_ENCRYPTION_KEY = stringPreferencesKey("partner_encryption_key")
         private val MY_DECRYPTION_KEY = stringPreferencesKey("my_decryption_key")
+        private val USER_ACCOUNTS_KEY = stringPreferencesKey("user_accounts")
+        private const val MAX_USER_ACCOUNTS = 10
+    }
+
+    data class UserAccountEntry(
+        val anonymousUid: String,
+        val pairedPartnerUid: String? = null,
+        val pairedAt: Long? = null,
+        val encryptionKey: String? = null,
+        val displayName: String? = null
+    ) {
+        fun toJson(): JSONObject = JSONObject().apply {
+            put("anonymousUid", anonymousUid)
+            put("pairedPartnerUid", pairedPartnerUid)
+            put("pairedAt", pairedAt)
+            put("encryptionKey", encryptionKey)
+            put("displayName", displayName)
+        }
+
+        companion object {
+            fun fromJson(json: JSONObject): UserAccountEntry? {
+                return try {
+                    UserAccountEntry(
+                        anonymousUid = json.getString("anonymousUid"),
+                        pairedPartnerUid = json.optString("pairedPartnerUid", null),
+                        pairedAt = if (json.has("pairedAt") && !json.isNull("pairedAt")) {
+                            json.getLong("pairedAt")
+                        } else {
+                            null
+                        },
+                        encryptionKey = json.optString("encryptionKey", null),
+                        displayName = json.optString("displayName", null)
+                    )
+                } catch (e: Exception) {
+                    null
+                }
+            }
+        }
     }
     
     /**
@@ -71,6 +110,38 @@ class PairingRepository(private val context: Context) {
      * Get the current user's UID.
      */
     fun getCurrentUserId(): String? = auth.currentUser?.uid
+
+    suspend fun createAnonymousAccountForPairing(
+        displayName: String? = null
+    ): Result<UserAccountEntry> {
+        return try {
+            val existingAccounts = getUserAccounts().first()
+            if (existingAccounts.size >= MAX_USER_ACCOUNTS) {
+                return Result.failure(Exception("You can only have up to $MAX_USER_ACCOUNTS pairings"))
+            }
+
+            val signInResult = auth.signInAnonymously().await()
+            val uid = signInResult.user?.uid
+                ?: return Result.failure(Exception("Failed to create anonymous account"))
+
+            val encryptionKey = EncryptionHelper.generateKey()
+            saveMyDecryptionKey(encryptionKey)
+            initializeUserDocument()
+
+            val entry = UserAccountEntry(
+                anonymousUid = uid,
+                encryptionKey = encryptionKey,
+                displayName = displayName
+            )
+            saveOrUpdateUserAccount(entry)
+
+            Log.d(TAG, "Created anonymous pairing account: $uid")
+            Result.success(entry)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed creating anonymous pairing account", e)
+            Result.failure(e)
+        }
+    }
     
     /**
      * Get the current FCM token.
@@ -122,6 +193,10 @@ class PairingRepository(private val context: Context) {
     suspend fun sendPairingRequest(targetUserId: String, theirEncryptionKey: String? = null, verificationCode: String? = null): Result<Unit> {
         val myUserId = getCurrentUserId() ?: return Result.failure(Exception("Not signed in"))
         val myFcmToken = getFcmToken() ?: return Result.failure(Exception("No FCM token"))
+        val myAccount = getUserAccounts().first()[myUserId]
+        if (myAccount?.pairedPartnerUid != null) {
+            return Result.failure(Exception("This account is already paired and cannot send a new request"))
+        }
         
         if (targetUserId == myUserId) {
             return Result.failure(Exception("Cannot pair with yourself"))
@@ -279,6 +354,16 @@ class PairingRepository(private val context: Context) {
                     encryptionKey = request.requesterEncryptionKey  // Their key
                 )
             )
+            val storedAccount = getUserAccounts().first()[myUserId]
+            saveOrUpdateUserAccount(
+                UserAccountEntry(
+                    anonymousUid = myUserId,
+                    pairedPartnerUid = request.requesterUid,
+                    pairedAt = System.currentTimeMillis(),
+                    encryptionKey = myEncryptionKey ?: storedAccount?.encryptionKey,
+                    displayName = storedAccount?.displayName
+                )
+            )
             
             Log.d(TAG, "Pairing accepted with: ${request.requesterUid}, encryption: ${request.requesterEncryptionKey != null}")
             Result.success(Unit)
@@ -315,8 +400,8 @@ class PairingRepository(private val context: Context) {
      * Listen for when our pairing request gets accepted.
      * Called after we send a request to wait for acceptance.
      */
-    fun observeMyRequestStatus(targetUserId: String): Flow<PairingStatus> = callbackFlow {
-        val myUserId = getCurrentUserId()
+    fun observeMyRequestStatus(targetUserId: String, requesterUid: String? = null): Flow<PairingStatus> = callbackFlow {
+        val myUserId = requesterUid ?: getCurrentUserId()
         if (myUserId == null) {
             trySend(PairingStatus.Error("Not signed in"))
             close()
@@ -355,8 +440,8 @@ class PairingRepository(private val context: Context) {
      * Complete pairing after our request was accepted.
      * Fetches the partner's FCM token and encryption key, saves locally.
      */
-    suspend fun completePairing(partnerUserId: String): Result<Partner> {
-        val myUserId = getCurrentUserId() ?: return Result.failure(Exception("Not signed in"))
+    suspend fun completePairing(partnerUserId: String, accountUid: String? = null): Result<Partner> {
+        val myUserId = accountUid ?: getCurrentUserId() ?: return Result.failure(Exception("Not signed in"))
         
         return try {
             // Get partner's user document to get their FCM token
@@ -395,6 +480,16 @@ class PairingRepository(private val context: Context) {
                 encryptionKey = partnerEncryptionKey
             )
             savePartnerLocally(partner)
+            val storedAccount = getUserAccounts().first()[myUserId]
+            saveOrUpdateUserAccount(
+                UserAccountEntry(
+                    anonymousUid = myUserId,
+                    pairedPartnerUid = partnerUserId,
+                    pairedAt = System.currentTimeMillis(),
+                    encryptionKey = storedAccount?.encryptionKey,
+                    displayName = storedAccount?.displayName
+                )
+            )
             
             // Clear temporary key storage
             pendingEncryptionKey = null
@@ -475,6 +570,41 @@ class PairingRepository(private val context: Context) {
             prefs.remove(MY_DECRYPTION_KEY)
         }
         Log.d(TAG, "Partner cleared")
+    }
+
+    fun getUserAccounts(): Flow<Map<String, UserAccountEntry>> {
+        return context.dataStore.data.map { prefs ->
+            parseUserAccounts(prefs[USER_ACCOUNTS_KEY])
+        }
+    }
+
+    private suspend fun saveOrUpdateUserAccount(account: UserAccountEntry) {
+        context.dataStore.edit { prefs ->
+            val existing = parseUserAccounts(prefs[USER_ACCOUNTS_KEY]).toMutableMap()
+            existing[account.anonymousUid] = account
+            prefs[USER_ACCOUNTS_KEY] = serializeUserAccounts(existing)
+        }
+    }
+
+    private fun parseUserAccounts(rawJson: String?): Map<String, UserAccountEntry> {
+        if (rawJson.isNullOrBlank()) return emptyMap()
+        return try {
+            val root = JSONObject(rawJson)
+            root.keys().asSequence().mapNotNull { uid ->
+                val accountJson = root.optJSONObject(uid) ?: return@mapNotNull null
+                UserAccountEntry.fromJson(accountJson)?.let { uid to it }
+            }.toMap()
+        } catch (_: Exception) {
+            emptyMap()
+        }
+    }
+
+    private fun serializeUserAccounts(accounts: Map<String, UserAccountEntry>): String {
+        val root = JSONObject()
+        accounts.forEach { (uid, account) ->
+            root.put(uid, account.toJson())
+        }
+        return root.toString()
     }
     
     /**
