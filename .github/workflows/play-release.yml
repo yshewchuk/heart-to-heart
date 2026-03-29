@@ -3,6 +3,8 @@
 # Required repository secrets:
 #   PLAY_SERVICE_ACCOUNT_JSON — JSON for a Play Console service account with
 #     "Release to production, exclude devices, and use Play App Signing" (or your target track).
+#   GOOGLE_SERVICES_JSON — Full contents of Firebase google-services.json for
+#     com.yurishewchuk.hearttoheart (same as Android build workflow).
 #   RELEASE_KEYSTORE_BASE64 — Base64 of the upload keystore .jks file.
 #   KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD — Keystore credentials.
 #
@@ -59,8 +61,19 @@ jobs:
       - name: Write SDK path for Gradle
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
 
-      - name: Place google-services.json for CI
-        run: cp .github/ci/google-services.placeholder.json app/google-services.json
+      - name: Write google-services.json from secret
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "${GOOGLE_SERVICES_JSON}" ]; then
+            echo "Error: GOOGLE_SERVICES_JSON repository secret is not set or empty."
+            exit 1
+          fi
+          printf '%s\n' "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          if ! python3 -c "import json; json.load(open('app/google-services.json'))" 2>/dev/null; then
+            echo "Error: GOOGLE_SERVICES_JSON is not valid JSON."
+            exit 1
+          fi
 
       - name: Decode release keystore
         env:
