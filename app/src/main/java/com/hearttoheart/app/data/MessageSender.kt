@@ -3,6 +3,7 @@ package com.hearttoheart.app.data
 import android.content.Context
 import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.functions.ktx.functions
 import com.google.firebase.ktx.Firebase
@@ -14,6 +15,7 @@ import kotlinx.coroutines.tasks.await
 class MessageSender(private val context: Context? = null) {
     
     private val functions: FirebaseFunctions = Firebase.functions
+    private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     private val messageHistory: MessageHistory? = context?.let { MessageHistory(it) }
     
@@ -28,9 +30,12 @@ class MessageSender(private val context: Context? = null) {
      * @param message The message to send (category + note)
      * @return Result indicating success or failure
      */
-    suspend fun sendMessage(partner: Partner, message: HeartMessage): Result<String> {
-        val currentUser = auth.currentUser
-        if (currentUser == null) {
+    suspend fun sendMessage(
+        senderAccountUid: String,
+        partner: Partner,
+        message: HeartMessage
+    ): Result<String> {
+        if (auth.currentUser == null) {
             Log.e(TAG, "Cannot send message: not authenticated")
             return Result.failure(Exception("Not authenticated"))
         }
@@ -51,11 +56,18 @@ class MessageSender(private val context: Context? = null) {
             message.note
         }
         
+        val targetFcmToken = if (partner.fcmToken.isNotBlank()) {
+            partner.fcmToken
+        } else {
+            fetchPartnerFcmToken(partner.uid)
+                ?: return Result.failure(Exception("Partner FCM token not found"))
+        }
+
         val data = hashMapOf(
-            "targetFcmToken" to partner.fcmToken,
+            "targetFcmToken" to targetFcmToken,
             "category" to message.category.name,
             "note" to noteToSend,
-            "senderUid" to currentUser.uid,
+            "senderUid" to senderAccountUid,
             "encrypted" to (partner.encryptionKey != null && message.note.isNotEmpty())
         )
         
@@ -71,6 +83,7 @@ class MessageSender(private val context: Context? = null) {
             
             // Save to local history (with original plaintext note)
             messageHistory?.saveMessage(
+                senderAccountUid,
                 StoredMessage(
                     category = message.category,
                     note = message.note,  // Store plaintext locally
@@ -107,6 +120,19 @@ class MessageSender(private val context: Context? = null) {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update FCM token", e)
             Result.failure(e)
+        }
+    }
+
+    private suspend fun fetchPartnerFcmToken(partnerUid: String): String? {
+        return try {
+            val userDoc = firestore.collection("users")
+                .document(partnerUid)
+                .get()
+                .await()
+            userDoc.getString("fcmToken")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to fetch partner FCM token", e)
+            null
         }
     }
 }

@@ -55,9 +55,9 @@ class HeartFCMService : FirebaseMessagingService() {
         // Process message (decrypt if needed) and save/display
         serviceScope.launch {
             // Decrypt note if encrypted
-            if (isEncrypted && note.isNotEmpty()) {
+            if (isEncrypted && note.isNotEmpty() && senderUid.isNotBlank()) {
                 try {
-                    val decryptionKey = pairingRepository.getMyDecryptionKey().first()
+                    val decryptionKey = pairingRepository.getUserAccounts().first()[senderUid]?.encryptionKey
                     if (decryptionKey != null) {
                         val decrypted = EncryptionHelper.decrypt(note, decryptionKey)
                         Log.d(TAG, "Note decrypted successfully")
@@ -72,7 +72,12 @@ class HeartFCMService : FirebaseMessagingService() {
             
             // Save to local history
             try {
+                if (senderUid.isBlank()) {
+                    Log.w(TAG, "Ignoring message without sender UID")
+                    return@launch
+                }
                 messageHistory.saveMessage(
+                    senderUid,
                     StoredMessage(
                         category = category,
                         note = note,

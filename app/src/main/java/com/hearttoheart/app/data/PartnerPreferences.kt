@@ -62,21 +62,20 @@ data class PartnerPrefs(
 class PartnerPreferencesRepository(private val context: Context) {
     
     companion object {
-        private val NICKNAME_KEY = stringPreferencesKey("partner_nickname")
-        private val PROFILE_PICTURE_KEY = stringPreferencesKey("partner_profile_picture")
-        private val NOTIFICATION_ICON_KEY = stringPreferencesKey("notification_icon")
-        private const val PROFILE_PICTURE_FILENAME = "partner_profile.jpg"
+        private const val KEY_PREFIX_NICKNAME = "partner_nickname_"
+        private const val KEY_PREFIX_PROFILE_PICTURE = "partner_profile_picture_"
+        private const val KEY_PREFIX_NOTIFICATION_ICON = "notification_icon_"
     }
     
     /**
      * Get partner preferences as a Flow.
      */
-    fun getPreferences(): Flow<PartnerPrefs> {
+    fun getPreferences(accountUid: String): Flow<PartnerPrefs> {
         return context.partnerPrefsDataStore.data.map { prefs ->
             PartnerPrefs(
-                nickname = prefs[NICKNAME_KEY] ?: "My Love",
-                profilePictureUri = prefs[PROFILE_PICTURE_KEY],
-                notificationIcon = prefs[NOTIFICATION_ICON_KEY]?.let { 
+                nickname = prefs[nicknameKey(accountUid)] ?: "My Love",
+                profilePictureUri = prefs[profilePictureKey(accountUid)],
+                notificationIcon = prefs[notificationIconKey(accountUid)]?.let {
                     try { NotificationIcon.valueOf(it) } catch (e: Exception) { NotificationIcon.HEART }
                 } ?: NotificationIcon.HEART
             )
@@ -86,9 +85,9 @@ class PartnerPreferencesRepository(private val context: Context) {
     /**
      * Update nickname.
      */
-    suspend fun setNickname(nickname: String) {
+    suspend fun setNickname(accountUid: String, nickname: String) {
         context.partnerPrefsDataStore.edit { prefs ->
-            prefs[NICKNAME_KEY] = nickname.ifBlank { "My Love" }
+            prefs[nicknameKey(accountUid)] = nickname.ifBlank { "My Love" }
         }
     }
     
@@ -96,12 +95,12 @@ class PartnerPreferencesRepository(private val context: Context) {
      * Update profile picture by copying it to internal storage.
      * This ensures the image persists even after the app is restarted.
      */
-    suspend fun setProfilePicture(uri: Uri?) {
+    suspend fun setProfilePicture(accountUid: String, uri: Uri?) {
         if (uri == null) {
             // Delete the saved profile picture
-            deleteProfilePicture()
+            deleteProfilePicture(accountUid)
             context.partnerPrefsDataStore.edit { prefs ->
-                prefs.remove(PROFILE_PICTURE_KEY)
+                prefs.remove(profilePictureKey(accountUid))
             }
             return
         }
@@ -141,7 +140,7 @@ class PartnerPreferencesRepository(private val context: Context) {
                 }
                 
                 // Save to internal storage
-                val file = File(context.filesDir, PROFILE_PICTURE_FILENAME)
+                val file = File(context.filesDir, profilePictureFileName(accountUid))
                 FileOutputStream(file).use { out ->
                     finalBitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
                 }
@@ -161,7 +160,7 @@ class PartnerPreferencesRepository(private val context: Context) {
         // Save the path to DataStore
         if (savedPath != null) {
             context.partnerPrefsDataStore.edit { prefs ->
-                prefs[PROFILE_PICTURE_KEY] = savedPath
+                prefs[profilePictureKey(accountUid)] = savedPath
             }
         }
     }
@@ -169,9 +168,9 @@ class PartnerPreferencesRepository(private val context: Context) {
     /**
      * Delete the saved profile picture file.
      */
-    private fun deleteProfilePicture() {
+    private fun deleteProfilePicture(accountUid: String) {
         try {
-            val file = File(context.filesDir, PROFILE_PICTURE_FILENAME)
+            val file = File(context.filesDir, profilePictureFileName(accountUid))
             if (file.exists()) {
                 file.delete()
             }
@@ -183,18 +182,25 @@ class PartnerPreferencesRepository(private val context: Context) {
     /**
      * Update notification icon.
      */
-    suspend fun setNotificationIcon(icon: NotificationIcon) {
+    suspend fun setNotificationIcon(accountUid: String, icon: NotificationIcon) {
         context.partnerPrefsDataStore.edit { prefs ->
-            prefs[NOTIFICATION_ICON_KEY] = icon.name
+            prefs[notificationIconKey(accountUid)] = icon.name
         }
     }
     
     /**
      * Clear all preferences.
      */
-    suspend fun clearPreferences() {
+    suspend fun clearPreferences(accountUid: String) {
         context.partnerPrefsDataStore.edit { prefs ->
-            prefs.clear()
+            prefs.remove(nicknameKey(accountUid))
+            prefs.remove(profilePictureKey(accountUid))
+            prefs.remove(notificationIconKey(accountUid))
         }
     }
+
+    private fun nicknameKey(accountUid: String) = stringPreferencesKey("$KEY_PREFIX_NICKNAME$accountUid")
+    private fun profilePictureKey(accountUid: String) = stringPreferencesKey("$KEY_PREFIX_PROFILE_PICTURE$accountUid")
+    private fun notificationIconKey(accountUid: String) = stringPreferencesKey("$KEY_PREFIX_NOTIFICATION_ICON$accountUid")
+    private fun profilePictureFileName(accountUid: String) = "partner_profile_$accountUid.jpg"
 }

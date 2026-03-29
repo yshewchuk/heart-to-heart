@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.channels.awaitClose
@@ -48,6 +49,7 @@ class PairingRepository(private val context: Context) {
         private val PARTNER_ENCRYPTION_KEY = stringPreferencesKey("partner_encryption_key")
         private val MY_DECRYPTION_KEY = stringPreferencesKey("my_decryption_key")
         private val USER_ACCOUNTS_KEY = stringPreferencesKey("user_accounts")
+        private val SELECTED_ACCOUNT_UID_KEY = stringPreferencesKey("selected_account_uid")
         private const val MAX_USER_ACCOUNTS = 10
     }
 
@@ -130,6 +132,7 @@ class PairingRepository(private val context: Context) {
                 displayName = displayName
             )
             saveOrUpdateUserAccount(entry)
+            setSelectedAccountUid(uid)
 
             Log.d(TAG, "Created anonymous pairing account: $uid")
             Result.success(entry)
@@ -526,6 +529,68 @@ class PairingRepository(private val context: Context) {
     fun getUserAccounts(): Flow<Map<String, UserAccountEntry>> {
         return context.dataStore.data.map { prefs ->
             parseUserAccounts(prefs[USER_ACCOUNTS_KEY])
+        }
+    }
+
+    fun getSelectedAccountUid(): Flow<String?> {
+        return context.dataStore.data.map { prefs ->
+            prefs[SELECTED_ACCOUNT_UID_KEY]
+        }
+    }
+
+    suspend fun setSelectedAccountUid(accountUid: String?) {
+        context.dataStore.edit { prefs ->
+            if (accountUid.isNullOrBlank()) {
+                prefs.remove(SELECTED_ACCOUNT_UID_KEY)
+            } else {
+                prefs[SELECTED_ACCOUNT_UID_KEY] = accountUid
+            }
+        }
+    }
+
+    fun getPairedAccounts(): Flow<Map<String, UserAccountEntry>> {
+        return getUserAccounts().map { accounts ->
+            accounts.filterValues { it.pairedPartnerUid != null }
+        }
+    }
+
+    suspend fun unpairAccount(accountUid: String): Result<Unit> {
+        return try {
+            val existingAccounts = getUserAccounts().first().toMutableMap()
+            val account = existingAccounts[accountUid]
+                ?: return Result.failure(Exception("Account not found"))
+
+            val partnerUid = account.pairedPartnerUid
+            if (!partnerUid.isNullOrBlank()) {
+                try {
+                    firestore.collection(USERS_COLLECTION)
+                        .document(accountUid)
+                        .update("partnerId", FieldValue.delete())
+                        .await()
+                } catch (_: Exception) {
+                    // Best-effort cleanup. Local unpair still proceeds.
+                }
+            }
+
+            existingAccounts.remove(accountUid)
+            context.dataStore.edit { prefs ->
+                prefs[USER_ACCOUNTS_KEY] = serializeUserAccounts(existingAccounts)
+                val selectedUid = prefs[SELECTED_ACCOUNT_UID_KEY]
+                if (selectedUid == accountUid) {
+                    val fallbackUid = existingAccounts.values
+                        .firstOrNull { it.pairedPartnerUid != null }
+                        ?.anonymousUid
+                    if (fallbackUid == null) {
+                        prefs.remove(SELECTED_ACCOUNT_UID_KEY)
+                    } else {
+                        prefs[SELECTED_ACCOUNT_UID_KEY] = fallbackUid
+                    }
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to unpair account: $accountUid", e)
+            Result.failure(e)
         }
     }
 

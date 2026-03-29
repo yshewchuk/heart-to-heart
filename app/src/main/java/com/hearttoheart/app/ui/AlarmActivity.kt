@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import com.hearttoheart.app.data.MessageCategory
 import com.hearttoheart.app.services.AlarmService
 import com.hearttoheart.app.data.PartnerPreferencesRepository
+import com.hearttoheart.app.data.PairingRepository
 import com.hearttoheart.app.ui.theme.CoralDark
 import com.hearttoheart.app.ui.theme.HeartToHeartTheme
 import com.hearttoheart.app.ui.theme.LifelineColor
@@ -59,8 +60,15 @@ class AlarmActivity : ComponentActivity() {
         
         // Load partner preferences
         val prefsRepository = PartnerPreferencesRepository(this)
+        val pairingRepository = PairingRepository(this)
+        val selectedAccountUid = runBlocking {
+            try { pairingRepository.getSelectedAccountUid().first() }
+            catch (e: Exception) { null }
+        }
         val prefs = runBlocking { 
-            try { prefsRepository.getPreferences().first() } 
+            try {
+                selectedAccountUid?.let { prefsRepository.getPreferences(it).first() }
+            }
             catch (e: Exception) { null }
         }
         val partnerNickname = prefs?.nickname?.ifBlank { null } ?: "your love"

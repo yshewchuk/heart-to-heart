@@ -52,35 +52,36 @@ data class StoredMessage(
 class MessageHistory(private val context: Context) {
     
     companion object {
-        private val MESSAGES_KEY = stringPreferencesKey("messages")
+        private const val KEY_PREFIX_MESSAGES = "messages_"
         private const val MAX_MESSAGES = 50  // Keep last 50 messages
     }
     
     /**
      * Save a message to history.
      */
-    suspend fun saveMessage(message: StoredMessage) {
+    suspend fun saveMessage(accountUid: String, message: StoredMessage) {
         context.messageHistoryDataStore.edit { prefs ->
-            val existing = prefs[MESSAGES_KEY]?.let { parseMessages(it) } ?: emptyList()
+            val key = messagesKey(accountUid)
+            val existing = prefs[key]?.let { parseMessages(it) } ?: emptyList()
             val updated = (existing + message).takeLast(MAX_MESSAGES)
-            prefs[MESSAGES_KEY] = serializeMessages(updated)
+            prefs[key] = serializeMessages(updated)
         }
     }
     
     /**
      * Get all messages as a Flow.
      */
-    fun getMessages(): Flow<List<StoredMessage>> {
+    fun getMessages(accountUid: String): Flow<List<StoredMessage>> {
         return context.messageHistoryDataStore.data.map { prefs ->
-            prefs[MESSAGES_KEY]?.let { parseMessages(it) } ?: emptyList()
+            prefs[messagesKey(accountUid)]?.let { parseMessages(it) } ?: emptyList()
         }
     }
     
     /**
      * Get the most recent received message.
      */
-    fun getLastReceivedMessage(): Flow<StoredMessage?> {
-        return getMessages().map { messages ->
+    fun getLastReceivedMessage(accountUid: String): Flow<StoredMessage?> {
+        return getMessages(accountUid).map { messages ->
             messages.filter { !it.isSent }.maxByOrNull { it.timestamp }
         }
     }
@@ -88,8 +89,8 @@ class MessageHistory(private val context: Context) {
     /**
      * Get the most recent sent message.
      */
-    fun getLastSentMessage(): Flow<StoredMessage?> {
-        return getMessages().map { messages ->
+    fun getLastSentMessage(accountUid: String): Flow<StoredMessage?> {
+        return getMessages(accountUid).map { messages ->
             messages.filter { it.isSent }.maxByOrNull { it.timestamp }
         }
     }
@@ -97,10 +98,14 @@ class MessageHistory(private val context: Context) {
     /**
      * Clear all message history.
      */
-    suspend fun clearHistory() {
+    suspend fun clearHistory(accountUid: String) {
         context.messageHistoryDataStore.edit { prefs ->
-            prefs.remove(MESSAGES_KEY)
+            prefs.remove(messagesKey(accountUid))
         }
+    }
+
+    private fun messagesKey(accountUid: String): Preferences.Key<String> {
+        return stringPreferencesKey("$KEY_PREFIX_MESSAGES$accountUid")
     }
     
     private fun parseMessages(json: String): List<StoredMessage> {
