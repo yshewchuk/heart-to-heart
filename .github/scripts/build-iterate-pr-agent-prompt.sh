@@ -85,6 +85,7 @@ RESOLVED_COMMENT_IDS=$(
       | select(.isResolved == true)
       | (.comments.nodes // [])[]
       | .databaseId
+      | select(. != null)
     ] | unique
   '
 )
@@ -93,7 +94,7 @@ RESOLVED_COMMENT_IDS=$(
 if [[ "${GITHUB_EVENT_NAME:-}" == "pull_request_review_comment" ]]; then
   TRIGGER_COMMENT_ID=$(jq -r '(.comment.id // empty) | if . == null or . == "" then empty else . end' "$EVENT_FILE")
   if [[ -n "$TRIGGER_COMMENT_ID" ]]; then
-    if echo "$RESOLVED_COMMENT_IDS" | jq -e --argjson tid "$TRIGGER_COMMENT_ID" 'index($tid) != null' >/dev/null 2>&1; then
+    if echo "$RESOLVED_COMMENT_IDS" | jq -e --arg tid "$TRIGGER_COMMENT_ID" 'map(tostring) | index($tid) != null' >/dev/null 2>&1; then
       echo "Iterate workflow skipped: triggering review comment is on a resolved thread." >&2
       if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
         echo "SKIP_AGENT=true" >>"$GITHUB_OUTPUT"
