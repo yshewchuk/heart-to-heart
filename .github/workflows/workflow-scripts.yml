@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/scripts/**'
       - '.github/workflows/next-task-agent.yml'
+      - '.github/workflows/iterate-pr-agent.yml'
       - '.github/workflows/workflow-scripts.yml'
   push:
     branches:
@@ -12,6 +13,7 @@ on:
     paths:
       - '.github/scripts/**'
       - '.github/workflows/next-task-agent.yml'
+      - '.github/workflows/iterate-pr-agent.yml'
       - '.github/workflows/workflow-scripts.yml'
 
 jobs:
@@ -26,3 +28,6 @@ jobs:
 
       - name: Run task overview golden-file tests
         run: ./.github/scripts/run-next-task-overview-tests.sh
+
+      - name: Run iterate PR agent prompt tests
+        run: ./.github/scripts/run-iterate-pr-prompt-tests.sh

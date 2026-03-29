@@ -1,0 +1,31 @@
+The user has requested to iterate on this Pull Request based on the feedback.
+
+Pull Request Base Branch: main
+Pull Request Target Branch: feature/branch
+
+Pull Request Overview:
+Title: Test PR
+
+PR description line
+
+Triggered Review Comment Context (inline in diff hunk):
+```diff
+--- a/.github/scripts/test/overview-case-minimal/expected-overview.txt
++++ b/.github/scripts/test/overview-case-minimal/expected-overview.txt
+@@ -0,0 +1,8 @@
++## Task overview
++
++{"summary":"Only one PR in flight."}
+========== Comment on .github/scripts/test/overview-case-minimal/expected-overview.txt (line 3) ==========
+Author: test-actor
+The summaries should be markdown. /iterate
+========== End comment ==========
+```
+
+Issue Comments:
+
+
+Code Review Comments:
+
+
+Please review the feedback provided in the comments and implement the requested changes. Since the target PR URL has been provided, make sure to commit and push the changes directly to the existing PR branch (feature/branch).

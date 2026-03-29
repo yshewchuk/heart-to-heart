@@ -1,0 +1,10 @@
+{
+  "pull_request": { "number": 20 },
+  "comment": {
+    "path": ".github/scripts/test/overview-case-minimal/expected-overview.txt",
+    "line": 3,
+    "body": "The summaries should be markdown. /iterate",
+    "diff_hunk": "@@ -0,0 +1,8 @@\n+## Task overview\n+\n+{\"summary\":\"Only one PR in flight.\"}",
+    "user": { "login": "yshewchuk" }
+  }
+}
