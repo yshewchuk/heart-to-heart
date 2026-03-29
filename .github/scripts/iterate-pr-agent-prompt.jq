@@ -8,8 +8,12 @@
 #     --arg actor LOGIN
 
 ($event[0]) as $event |
+def is_unresolved_review_comment($resolved_ids):
+  .id as $id |
+  ($id == null) or (($resolved_ids | index($id)) == null);
+
 ($review_comments
-  | map(select(.id as $cid | ($cid == null) or (($resolved_comment_ids | index($cid)) == null)))
+  | map(select(is_unresolved_review_comment($resolved_comment_ids)))
   | map(
     (
       "File: " + (.path // "<unknown>") +
