@@ -104,8 +104,8 @@
       "title": "Multi-partner UI — HomeScreen selector, HistoryScreen, SettingsScreen",
       "description": "Add partner/account selector strip to HomeScreen. Update MainActivity to hold selected account UID state and list of accounts. Update HistoryScreen to show messages for selected account. Add per-account settings and unpair flow to SettingsScreen. Update HeartFCMService to route incoming messages to the correct account.",
       "estimate": "~5 files, ~500 lines",
-      "status": "planned",
-      "started": false,
+      "status": "in_progress",
+      "started": true,
       "dependencies": [
         "PR 1"
       ],
