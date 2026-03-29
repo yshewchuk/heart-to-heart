@@ -1,0 +1,16 @@
+{
+  "id": "minimal",
+  "title": "Minimal",
+  "overview": {
+    "summary": "Only one PR in flight."
+  },
+  "pullRequests": [
+    {
+      "id": 0,
+      "title": "First PR",
+      "description": "ignored when agentPrompt set",
+      "status": "in_progress",
+      "agentPrompt": "Implement the first slice."
+    }
+  ]
+}
