@@ -109,6 +109,7 @@
       "dependencies": [
         "PR 1"
       ],
+      "changes": "MainActivity selected-account state, HomeScreen partner selector, account-scoped history/preferences/sending, Settings account management and unpairing, FCM sender_uid routing. Alarm-context fallback moved to PR 4.",
       "agentPrompt": "Implement PR 2: Add partner/account selector strip to HomeScreen. Update MainActivity to hold selected account UID state and list of accounts. Update HistoryScreen to show messages for selected account. Add per-account settings and unpair flow to SettingsScreen. Update HeartFCMService to route incoming messages to the correct account. Depends on PR 1."
     },
     {
@@ -123,6 +124,18 @@
         "PR 2"
       ],
       "agentPrompt": "Implement PR 3: Update README to reflect new multi-partner architecture. Update \"Next Steps\" checklist to reflect completed features. Depends on PRs 1–2."
+    },
+    {
+      "id": 4,
+      "title": "Alarm context follow-up for selected account",
+      "description": "Apply selected-account fallback for alarm preference lookup paths so alarm display and behavior align with the active partner context. This was split from PR 2 during review to keep UI/history/settings scope focused.",
+      "estimate": "~2 files, ~60 lines",
+      "status": "planned",
+      "started": false,
+      "dependencies": [
+        "PR 2"
+      ],
+      "agentPrompt": "Implement PR 4: Update alarm preference lookup in AlarmService and AlarmActivity to resolve selected-account-scoped settings consistently with multi-partner state. Depends on PR 2."
     }
   ]
 }
