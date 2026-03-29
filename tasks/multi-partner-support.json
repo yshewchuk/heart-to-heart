@@ -130,11 +130,12 @@
       "title": "Alarm context follow-up for selected account",
       "description": "Apply selected-account fallback for alarm preference lookup paths so alarm display and behavior align with the active partner context. This was split from PR 2 during review to keep UI/history/settings scope focused.",
       "estimate": "~2 files, ~60 lines",
-      "status": "in_progress",
-      "started": true,
+      "status": "completed",
+      "started": false,
       "dependencies": [
         "PR 2"
       ],
+      "changes": "AlarmService and AlarmActivity now resolve partner preferences by account UID with selected-account fallback; alarm invocations from FCM/test mode pass account UID when available.",
       "agentPrompt": "Implement PR 4: Update alarm preference lookup in AlarmService and AlarmActivity to resolve selected-account-scoped settings consistently with multi-partner state. Depends on PR 2."
     }
   ]
