@@ -14,3 +14,5 @@ _No overview details provided._
 Use description when agentPrompt absent.
 
 Follow the repository AGENTS.md and skill workflow. Commit and push your work; open or update the pull request as appropriate.
+
+**Task plan bookkeeping (required):** When this PR is finished (merged or implementation is complete on the branch), you **must** update the task plan at `tasks/fallback.json`: for **PR 0**, set `status` to `"completed"` and `started` to `false`. Commit and push that change (to `main` when applicable) so the next-task workflow can select the next pull request.
