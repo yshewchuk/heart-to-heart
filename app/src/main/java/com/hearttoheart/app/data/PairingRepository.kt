@@ -58,6 +58,8 @@ class PairingRepository(private val context: Context) {
         val encryptionKey: String? = null,
         val displayName: String? = null
     ) {
+        // Preferences DataStore stores primitives/strings only, so we persist this data class
+        // as a JSON string and map fields explicitly with JSONObject.
         fun toJson(): JSONObject = JSONObject(
             mapOf(
                 "anonymousUid" to anonymousUid,
