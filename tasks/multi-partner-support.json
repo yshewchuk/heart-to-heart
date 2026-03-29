@@ -117,8 +117,8 @@
       "title": "README and cleanup",
       "description": "Update README to reflect new multi-partner architecture. Update \"Next Steps\" checklist to reflect completed features.",
       "estimate": "~1 file, ~80 lines",
-      "status": "in_progress",
-      "started": true,
+      "status": "completed",
+      "started": false,
       "dependencies": [
         "PR 1",
         "PR 2"

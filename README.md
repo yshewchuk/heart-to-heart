@@ -24,6 +24,18 @@ This app solves the "Latency Gap" problem - when modern smartphones filter out y
 - **Volume escalation** - Lifeline alerts ramp from 10% to 100% over 30 seconds
 - **Firebase Cloud Messaging** - Serverless push notifications
 - **QR code pairing** - No phone number or email required
+- **Multi-partner architecture** - Up to 10 simultaneous pairings on one device
+
+### Multi-Partner Pairing Model
+
+Heart-to-Heart now uses **one Firebase anonymous auth account per pairing**, not one account per device.
+
+- Tapping **Pair with New User** creates a fresh anonymous Firebase user
+- The generated QR encodes that account's UID + encryption key
+- Once paired, that account is bound to one partner and cannot be reused for another pairing
+- Each account has its own encryption key, partner profile, and message history
+
+This keeps each pairing isolated while reusing the existing Firestore schema based on Firebase UIDs.
 
 ## Getting Started
 
@@ -132,14 +144,16 @@ The app is designed to work with Android 14's FSI restrictions by:
 ## Implemented Features
 
 - [x] QR code pairing flow
+- [x] Multi-partner support (up to 10 simultaneous pairings)
+- [x] One-time QR pairing accounts (new anonymous UID per pairing)
 - [x] Firebase Cloud Functions for message delivery
 - [x] End-to-end encryption for notes
 - [x] Partner avatar/name customization
-- [x] Settings screen (notification preferences)
+- [x] Partner selector UI + account-scoped history
+- [x] Per-account settings and unpair flow
 
 ## Next Steps
 
-- [ ] Multi-partner support (multiple simultaneous pairings)
 - [ ] Delivery receipts
 
 ## Permissions
