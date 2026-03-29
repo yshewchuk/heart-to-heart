@@ -46,7 +46,8 @@ This is an **orchestrator skill** that coordinates the task completion workflow:
 3. **Implement** - Invoke `implement_pull_request` skill to write code and tests
 4. **Adjust if Needed** - If PR becomes too large, invoke `adjust_pull_request_plan`
 5. **Propose PR** - Invoke `propose_pull_request` skill to create PR for review
-6. **Parallel Work** - If other PRs are unblocked and don't depend on current work, start them
+6. **Mark PR complete in the task plan** - In the same task JSON, set the finished PR's `status` to `"completed"` and `started` to `false`, then commit and push (matches what the next-task GitHub workflow tells agents to do)
+7. **Parallel Work** - If other PRs are unblocked and don't depend on current work, start them
 
 ## PR Checklist Format
 
