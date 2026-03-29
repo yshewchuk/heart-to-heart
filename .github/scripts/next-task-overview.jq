@@ -1,5 +1,5 @@
-# Build the Cursor agent prompt for next-task-agent.
-# Usage: jq -n -f next-task-agent-prompt.jq --slurpfile t TASK.json --argjson idx INDEX
+# Task overview + completed-predecessors section for the next-task agent prompt.
+# Usage: jq -r -n -f next-task-overview.jq --slurpfile t TASK.json --argjson idx INDEX
 ($t[0]) as $root
 | ($root.pullRequests[$idx]) as $next
 | ($root.pullRequests | map(select(.id < $next.id and .status == "completed"))) as $completed_before
@@ -12,8 +12,4 @@
       else
         ($completed_before | map("- PR \(.id): \(.title) (\(.status))") | join("\n")) + "\n"
       end)
-    + "\n## Your assignment — implement this pull request\n\n"
-    + "**PR \($next.id): \($next.title)**\n\n"
-    + ($next.agentPrompt // $next.description // "")
-    + "\n\nFollow the repository AGENTS.md and skill workflow. Commit and push your work; open or update the pull request as appropriate."
   )

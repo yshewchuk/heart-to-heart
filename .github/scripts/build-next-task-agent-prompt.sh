@@ -5,4 +5,9 @@ set -euo pipefail
 TASK_FILE=${1:?task json path required}
 PR_INDEX=${2:?PR array index required}
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-jq -r -n -f "$SCRIPT_DIR/next-task-agent-prompt.jq" --slurpfile t "$TASK_FILE" --argjson idx "$PR_INDEX"
+# Avoid $(...) for jq output: bash strips trailing newlines from command substitution.
+tmp=$(mktemp)
+trap 'rm -f "$tmp"' EXIT
+"$SCRIPT_DIR/build-next-task-overview.sh" "$TASK_FILE" "$PR_INDEX" >> "$tmp"
+"$SCRIPT_DIR/build-next-task-prompt-tail.sh" "$TASK_FILE" "$PR_INDEX" >> "$tmp"
+cat "$tmp"

@@ -1,0 +1,15 @@
+{
+  "id": "minimal",
+  "title": "Minimal",
+  "overview": {
+    "summary": "Only one PR in flight."
+  },
+  "pullRequests": [
+    {
+      "id": 0,
+      "title": "First PR",
+      "status": "in_progress",
+      "agentPrompt": "x"
+    }
+  ]
+}
