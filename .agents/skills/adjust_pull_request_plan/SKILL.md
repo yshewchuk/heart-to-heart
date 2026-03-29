@@ -52,31 +52,7 @@ git checkout -b feature/part-1
 
 ### Step 3: Update Task Plan
 
-Modify `tasks/TASK-NAME.md` to reflect the breakdown:
-
-```markdown
-<br>
-
-- [ ] **PR 1: [Original PR Title] - Part 1**
-  - Description: [What this part covers]
-  - Est: ~X files, ~Y lines
-  - Status: Planned
-
-<br>
-
-- [ ] **PR 2: [Original PR Title] - Part 2**
-  - Description: [What this part covers]
-  - Est: ~X files, ~Y lines
-  - Status: Planned
-  - Dependencies: PR 1
-
-<br>
-
-- [x] **PR 3: [Original PR Title] - Plan Adjustment**
-  - Description: Break down oversized PR into smaller parts
-  - Est: ~1 file, ~20 lines
-  - Status: Merged
-```
+Edit `tasks/TASK-ID.json`: replace or split the oversized PR in `pullRequests` (preserve numeric `id` order or renumber consistently), set `dependencies` and `agentPrompt` on each new entry, and keep statuses accurate.
 
 ### Step 4: Create Plan Adjustment PR
 
@@ -84,9 +60,9 @@ Instead of the large implementation PR, create a PR with just the plan changes:
 
 ```powershell
 git checkout -b feature/TASK-NAME-replan
-git add tasks/TASK-NAME.md
-git commit -m "docs: break down TASK-NAME into smaller PRs"
-git push -u origin feature/TASK-NAME-replan
+git add tasks/TASK-ID.json
+git commit -m "docs: break down TASK-ID into smaller PRs"
+git push -u origin feature/TASK-ID-replan
 ```
 
 ### Step 5: Create Implementation PRs

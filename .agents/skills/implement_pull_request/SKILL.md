@@ -10,7 +10,7 @@ Write code and tests for a pull request.
 ## When to Use
 
 - Feature branch is created and ready for implementation
-- Working on changes described in the task plan
+- Working on changes described in the task plan JSON under `tasks/`
 
 ## Implementation Principles
 

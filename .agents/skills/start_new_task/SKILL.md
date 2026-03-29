@@ -30,7 +30,7 @@ This is an **orchestrator skill** that coordinates the task completion workflow:
 2. **Document** - Invoke `document_plan` skill to create a structured task plan
 3. **Propose Plan** - Invoke `propose_plan` skill to create a PR for the plan
 
-**Output**: A committed markdown file in `tasks/` documenting:
+**Output**: A committed JSON task plan in `tasks/` (e.g. `tasks/TASK-ID.json`) documenting:
 - Areas of the code that will change
 - Architectural changes (with diagrams if needed)
 - User experience changes
@@ -41,7 +41,7 @@ This is an **orchestrator skill** that coordinates the task completion workflow:
 
 **When**: Task plan is merged, or user instructs to "iterate on a task"
 
-1. **Check State** - Review the task plan document, note completed PRs
+1. **Check State** - Review the task plan JSON (`tasks/*.json`), note completed PRs
 2. **Start PR** - Invoke `start_pull_request` skill to create a feature branch
 3. **Implement** - Invoke `implement_pull_request` skill to write code and tests
 4. **Adjust if Needed** - If PR becomes too large, invoke `adjust_pull_request_plan`

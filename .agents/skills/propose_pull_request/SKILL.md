@@ -93,13 +93,7 @@ EOF
 
 ### Step 4: Update Task Plan
 
-Mark the PR as merged in `tasks/TASK-NAME.md`:
-
-```markdown
-- [x] **PR 1: Add user authentication**  <!-- Changed from [ ] to [x] -->
-  - Est: ~5 files, ~150 lines
-  - Status: Merged
-```
+In `tasks/TASK-ID.json`, set the merged PR entry to `status: "completed"`, `started: false`, and optionally add a `changes` string summarizing what shipped.
 
 ### Step 5: Check for Parallel Work
 
@@ -169,6 +163,6 @@ See `github_cli` skill for detailed Windows PowerShell GitHub CLI commands.
 - [ ] Edge cases are handled or noted
 - [ ] Decisions have reasoning
 - [ ] Feedback questions are specific
-- [ ] Task plan updated and checked off
+- [ ] Task plan JSON updated (`status`, `started`, optional `changes`)
 - [ ] No debug code or TODOs
 - [ ] CI passes
