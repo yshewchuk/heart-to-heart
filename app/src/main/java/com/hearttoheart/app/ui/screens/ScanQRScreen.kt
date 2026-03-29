@@ -81,8 +81,8 @@ fun ScanQRScreen(
         if (!hasCameraPermission) {
             permissionLauncher.launch(Manifest.permission.CAMERA)
         }
-        // Initialize user document
-        repository.initializeUserDocument()
+        // No-op: in the new auth model, we only create a fresh anonymous account
+        // when the user actually scans a QR (right before sending a request).
     }
     
     // Listen for pairing status when we've sent a request
@@ -344,9 +344,21 @@ fun ScanQRScreen(
                                 isSendingRequest = true
                                 
                                 scope.launch {
+                                    // New auth model: create a fresh anonymous account per pairing at scan time,
+                                    // then send the pairing request from that account.
+                                    val accountResult = repository.createFreshAnonymousAccountForPairing(generateQrKey = false)
+                                    if (accountResult.isFailure) {
+                                        isSendingRequest = false
+                                        error = accountResult.exceptionOrNull()?.message ?: "Failed to create pairing account"
+                                        scannedUserId = null
+                                        scannedEncryptionKey = null
+                                        scannedVerificationCode = null
+                                        return@launch
+                                    }
+
                                     // Pass their encryption key and our generated verification code
                                     val result = repository.sendPairingRequest(
-                                        qrData.userId, 
+                                        qrData.userId,
                                         qrData.encryptionKey,
                                         generatedCode
                                     )
