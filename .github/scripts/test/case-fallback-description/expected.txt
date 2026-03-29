@@ -1,10 +1,11 @@
 ## Task overview
 
-{}
+_No overview details provided._
 
 ## Pull requests completed before this one
 
 (none)
+
 
 ## Your assignment — implement this pull request
 

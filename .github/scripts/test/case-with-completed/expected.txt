@@ -1,10 +1,23 @@
 ## Task overview
 
-{"summary":"Second PR after first completed","scope":{"in":["a"],"out":["b"]}}
+### Summary
+
+Second PR after first completed
+
+### Scope
+
+#### In scope
+
+- a
+
+#### Out of scope
+
+- b
 
 ## Pull requests completed before this one
 
 - PR 0: Done (completed)
+
 
 ## Your assignment — implement this pull request
 

@@ -21,5 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run golden-file tests
+      - name: Run prompt golden-file tests
         run: ./.github/scripts/run-next-task-prompt-tests.sh
+
+      - name: Run task overview golden-file tests
+        run: ./.github/scripts/run-next-task-overview-tests.sh

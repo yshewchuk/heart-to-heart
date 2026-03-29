@@ -1,10 +1,13 @@
 ## Task overview
 
-{"summary":"Only one PR in flight."}
+### Summary
+
+Only one PR in flight.
 
 ## Pull requests completed before this one
 
 (none)
+
 
 ## Your assignment — implement this pull request
 

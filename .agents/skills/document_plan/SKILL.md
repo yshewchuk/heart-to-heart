@@ -43,7 +43,7 @@ Break down the task into logical, small PRs:
 Create `tasks/TASK-ID.json` (kebab-case id, e.g. `multi-partner-support.json`) with this shape:
 
 - **`id`**, **`title`**: Task identifier and display title.
-- **`overview`**: Object with the high-level plan (not a flat string dump):
+- **`overview`**: Object with the high-level plan (not a flat string dump). The **Next Task Agent** workflow turns this into markdown sections (`### Summary`, scope bullets, architecture, etc.); keep field names stable so that rendering stays predictable.
   - `summary`, `problemStatement`, `keyInsight` (strings)
   - `scope`: `{ "in": [...], "out": [...] }` (string arrays)
   - `architecture`, `userExperience` (markdown strings; diagrams/code blocks allowed)

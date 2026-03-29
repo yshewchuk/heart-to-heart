@@ -1,0 +1,20 @@
+## Task overview
+
+### Summary
+
+Second PR after first completed
+
+### Scope
+
+#### In scope
+
+- a
+
+#### Out of scope
+
+- b
+
+## Pull requests completed before this one
+
+- PR 0: Done (completed)
+
