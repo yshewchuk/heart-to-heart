@@ -90,12 +90,69 @@ RESOLVED_COMMENT_IDS=$(
   '
 )
 
-# Do not trigger the agent when /iterate is on an inline comment whose thread is already resolved.
+PR_JSON=$(gh api "${REPO_API}/pulls/${PR_NUMBER}")
+REVIEW_COMMENTS_JSON=$(gh api "${REPO_API}/pulls/${PR_NUMBER}/comments")
+
+# For pull_request_review_comment, treat the whole submitted review as the unit of work:
+# - include all comments from the same review in the agent prompt
+# - only trigger one agent per review (even if multiple comments contain /iterate)
+# - only skip for resolved threads if *all* /iterate comments in that review are resolved
 if [[ "${GITHUB_EVENT_NAME:-}" == "pull_request_review_comment" ]]; then
   TRIGGER_COMMENT_ID=$(jq -r '(.comment.id // empty) | if . == null or . == "" then empty else . end' "$EVENT_FILE")
+  TRIGGER_REVIEW_ID=$(jq -r '(.comment.pull_request_review_id // empty) | if . == null or . == "" then empty else . end' "$EVENT_FILE")
+
+  if [[ -n "$TRIGGER_REVIEW_ID" ]]; then
+    REVIEW_COMMENTS_JSON=$(
+      echo "$REVIEW_COMMENTS_JSON" | jq -c --arg rid "$TRIGGER_REVIEW_ID" '
+        map(select((.pull_request_review_id // null) != null))
+        | map(select((.pull_request_review_id | tostring) == $rid))
+      '
+    )
+  fi
+
+  # Find all /iterate comments within this review (by comment id).
+  ITERATE_COMMENT_IDS=$(
+    echo "$REVIEW_COMMENTS_JSON" | jq -c '
+      [
+        .[]
+        | select((.body // "") | contains("/iterate"))
+        | .id
+        | select(. != null)
+      ]
+    '
+  )
+
+  # If a review contains multiple /iterate comments, only trigger on the canonical one
+  # (lowest comment id) to avoid starting multiple cloud agents with identical context.
   if [[ -n "$TRIGGER_COMMENT_ID" ]]; then
-    if echo "$RESOLVED_COMMENT_IDS" | jq -e --arg tid "$TRIGGER_COMMENT_ID" 'map(tostring) | index($tid) != null' >/dev/null 2>&1; then
-      echo "Iterate workflow skipped: triggering review comment is on a resolved thread." >&2
+    CANONICAL_ITERATE_ID=$(
+      echo "$ITERATE_COMMENT_IDS" | jq -r '
+        if (length == 0) then "" else (map(tostring) | sort | .[0]) end
+      '
+    )
+    if [[ -n "$CANONICAL_ITERATE_ID" && "$TRIGGER_COMMENT_ID" != "$CANONICAL_ITERATE_ID" ]]; then
+      echo "Iterate workflow skipped: another /iterate comment in the same review will trigger the agent." >&2
+      if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+        echo "SKIP_AGENT=true" >>"$GITHUB_OUTPUT"
+      fi
+      exit 0
+    fi
+  fi
+
+  # Skip only if *all* /iterate comments for this review are on resolved threads.
+  if echo "$ITERATE_COMMENT_IDS" | jq -e 'length > 0' >/dev/null 2>&1; then
+    ALL_ITERATE_RESOLVED=$(
+      jq -n \
+        --argjson iterate_ids "$ITERATE_COMMENT_IDS" \
+        --argjson resolved_ids "$RESOLVED_COMMENT_IDS" \
+        '
+          ($resolved_ids | map(tostring) | unique) as $resolved |
+          ($iterate_ids | map(tostring) | unique) as $iterate |
+          ($iterate | all(. as $id | ($resolved | index($id)) != null))
+        '
+    )
+    if [[ "$ALL_ITERATE_RESOLVED" == "true" ]]; then
+      echo "Iterate workflow skipped: all /iterate comments in this review are on resolved threads." >&2
       if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
         echo "SKIP_AGENT=true" >>"$GITHUB_OUTPUT"
       fi
@@ -103,9 +160,6 @@ if [[ "${GITHUB_EVENT_NAME:-}" == "pull_request_review_comment" ]]; then
     fi
   fi
 fi
-
-PR_JSON=$(gh api "${REPO_API}/pulls/${PR_NUMBER}")
-REVIEW_COMMENTS_JSON=$(gh api "${REPO_API}/pulls/${PR_NUMBER}/comments")
 
 ACTOR="${GITHUB_ACTOR:-}"
 if [[ -z "$ACTOR" ]]; then

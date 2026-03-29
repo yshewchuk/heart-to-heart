@@ -1,6 +1,8 @@
 {
   "pull_request": { "number": 20 },
   "comment": {
+    "id": 99,
+    "pull_request_review_id": 10,
     "path": ".github/scripts/test/overview-case-minimal/expected-overview.txt",
     "line": 3,
     "body": "The summaries should be markdown. /iterate",

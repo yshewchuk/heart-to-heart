@@ -1,6 +1,7 @@
 [
   {
     "id": 1,
+    "pull_request_review_id": 10,
     "path": "a.txt",
     "line": 1,
     "side": "RIGHT",
@@ -10,6 +11,7 @@
   },
   {
     "id": 2,
+    "pull_request_review_id": 10,
     "path": "b.txt",
     "line": 2,
     "side": "RIGHT",

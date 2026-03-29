@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "id": 2,
+    "pull_request_review_id": 55,
+    "path": "b.txt",
+    "line": 2,
+    "side": "RIGHT",
+    "user": { "login": "yshewchuk" },
+    "body": "/iterate on resolved thread",
+    "diff_hunk": "@@ -0,0 +1 @@\n+y"
+  }
+]
