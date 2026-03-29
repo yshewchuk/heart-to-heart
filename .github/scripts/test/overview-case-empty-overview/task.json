@@ -1,0 +1,13 @@
+{
+  "id": "empty",
+  "title": "Empty",
+  "overview": {},
+  "pullRequests": [
+    {
+      "id": 0,
+      "title": "Solo",
+      "status": "planned",
+      "description": "d"
+    }
+  ]
+}
