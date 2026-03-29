@@ -37,7 +37,6 @@ fi
 
 REPO_API="repos/${GITHUB_REPOSITORY}"
 PR_JSON=$(gh api "${REPO_API}/pulls/${PR_NUMBER}")
-ISSUE_COMMENTS_JSON=$(gh api "${REPO_API}/issues/${PR_NUMBER}/comments")
 REVIEW_COMMENTS_JSON=$(gh api "${REPO_API}/pulls/${PR_NUMBER}/comments")
 
 ACTOR="${GITHUB_ACTOR:-}"
@@ -51,7 +50,6 @@ trap 'rm -f "$FEEDBACK_TMP"' EXIT
 jq -r -n -f "$SCRIPT_DIR/iterate-pr-agent-prompt.jq" \
   --slurpfile event "$EVENT_FILE" \
   --argjson pr "$PR_JSON" \
-  --argjson issue_comments "$ISSUE_COMMENTS_JSON" \
   --argjson review_comments "$REVIEW_COMMENTS_JSON" \
   --arg actor "$ACTOR" \
   >"$FEEDBACK_TMP"

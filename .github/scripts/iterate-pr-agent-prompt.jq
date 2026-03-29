@@ -3,12 +3,10 @@
 #   jq -r -n -f iterate-pr-agent-prompt.jq \
 #     --slurpfile event EVENT.json \
 #     --argjson pr PR.json \
-#     --argjson issue_comments ISSUE_COMMENTS.json \
 #     --argjson review_comments REVIEW_COMMENTS.json \
 #     --arg actor LOGIN
 
 ($event[0]) as $event |
-($issue_comments | map(.body // "") | join("\n\n")) as $issue_text |
 ($review_comments | map(
     (
       "File: " + (.path // "<unknown>") +
@@ -48,8 +46,6 @@
   $trigger_body + "\n" +
   "========== End comment ==========\n" +
   "```\n\n" +
-  "Issue Comments:\n" +
-  $issue_text + "\n\n" +
   "Code Review Comments:\n" +
   $review_text + "\n\n" +
   "Please review the feedback provided in the comments and implement the requested changes. " +

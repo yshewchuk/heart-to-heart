@@ -22,9 +22,6 @@ The summaries should be markdown. /iterate
 ========== End comment ==========
 ```
 
-Issue Comments:
-
-
 Code Review Comments:
 
 
