@@ -1,11 +1,11 @@
 ---
 name: document_plan
-description: Document a coding task in a structured markdown file. Use when planning a new feature, refactoring, or any task that requires multiple pull requests. Creates detailed task plans with PR breakdowns.
+description: Document a coding task in a structured JSON file under tasks/. Use when planning a new feature, refactoring, or any task that requires multiple pull requests. Creates detailed task plans with PR breakdowns for agents and GitHub Actions.
 ---
 
 # Document Plan
 
-Create a structured markdown document that outlines a task and its PR breakdown.
+Create a structured JSON task plan that outlines a task and its PR breakdown (consumed by GitHub Actions and agents).
 
 ## When to Use
 
@@ -38,94 +38,57 @@ Break down the task into logical, small PRs:
 - PRs should not depend on each other unless necessary
 - Ship refactorings separately from feature changes
 
-### Step 3: Create the Document
+### Step 3: Create the JSON file
 
-Create `tasks/TASK-NAME.md` with this structure:
+Create `tasks/TASK-ID.json` (kebab-case id, e.g. `multi-partner-support.json`) with this shape:
 
-```markdown
-# Task: [Task Name]
+- **`id`**, **`title`**: Task identifier and display title.
+- **`overview`**: Object with the high-level plan (not a flat string dump):
+  - `summary`, `problemStatement`, `keyInsight` (strings)
+  - `scope`: `{ "in": [...], "out": [...] }` (string arrays)
+  - `architecture`, `userExperience` (markdown strings; diagrams/code blocks allowed)
+  - `affectedAreas`: `[{ "path": "...", "note": "..." }, ...]`
+- **`pullRequests`**: Ordered array of PR objects:
+  - `id` (number, 0-based), `title`, `description`, `estimate` (string)
+  - `status`: `"planned"` | `"in_progress"` | `"completed"`
+  - `started`: boolean (GitHub workflow sets this when an agent run begins; agents should respect it)
+  - `dependencies`: e.g. `["PR 1"]` for PR 2 — only refer to completed PRs by id
+  - `agentPrompt` (string): Instructions the automated workflow passes to the agent for this PR (can match `description` or add repo-specific detail)
+  - Optional: `changes` (string) for release-note style notes after merge
 
-## Overview
+Example skeleton (abbreviated):
 
-[2-3 sentences describing what this task accomplishes]
-
-## Problem Statement
-
-[What problem does this solve? Why does it need to change?]
-
-## Scope
-
-### In Scope
-- [Item 1]
-- [Item 2]
-
-### Out of Scope
-- [Item 1]
-- [Item 2]
-
-## Affected Areas
-
-- `src/file1.ts` - [what changes]
-- `src/file2.ts` - [what changes]
-
-## Architecture
-
-[If applicable, describe architectural changes]
-[Include diagrams if helpful]
-
-## User Experience
-
-[How does this affect users?]
-
-## Pull Requests
-
-<br>
-
-- [ ] **PR 1: [Title]**
-  - Description: [What this PR does]
-  - Est: ~X files, ~Y lines
-  - Status: Planned
-  - Dependencies: None
-
-<br>
-
-- [ ] **PR 2: [Title]**
-  - Description: [What this PR does]
-  - Est: ~X files, ~Y lines
-  - Status: Planned
-  - Dependencies: PR 1
-
-<br>
-
-- [ ] **PR 3: [Title]**
-  - Description: [What this PR does]
-  - Est: ~X files, ~Y lines
-  - Status: Planned
-  - Dependencies: PR 2
-
-## Next Steps
-
-1. Review and merge this plan
-2. Implement PRs in order
-3. Mark each PR complete in this document as you merge
+```json
+{
+  "id": "my-feature",
+  "title": "My Feature",
+  "overview": {
+    "summary": "...",
+    "problemStatement": "...",
+    "keyInsight": "...",
+    "scope": { "in": [], "out": [] },
+    "architecture": "...",
+    "affectedAreas": [],
+    "userExperience": "..."
+  },
+  "pullRequests": [
+    {
+      "id": 0,
+      "title": "...",
+      "description": "...",
+      "estimate": "...",
+      "status": "planned",
+      "started": false,
+      "dependencies": [],
+      "agentPrompt": "..."
+    }
+  ]
+}
 ```
 
-## PR Checklist Formatting
+## PR list in JSON
 
-**Important**: Use `<br>` between PRs to create visual spacing. This allows checkboxes to be checked off individually when viewing the rendered markdown.
-
-```markdown
-- [ ] **PR 1: Add user authentication**
-  - Est: ~5 files, ~150 lines
-  - Status: Planned
-
-<br>
-
-- [ ] **PR 2: Add user profile page**
-  - Est: ~8 files, ~300 lines
-  - Status: Planned
-  - Dependencies: PR 1
-```
+Keep `pullRequests` in dependency order. The automated workflow picks the first item where `status` is not `"completed"`, all `dependencies` refer to completed PRs, and no PR has `started: true` or `status: "in_progress"`. When you finish a PR, set that entry's `status` to `"completed"`, `started` to `false`, and optionally fill `changes`.
 
 ## Estimating PR Size
 
@@ -143,7 +106,7 @@ Be conservative in estimates. It's better to underestimate and deliver fast than
 
 ## Final Checklist
 
-Before finalizing the document:
+Before finalizing the JSON:
 
 - [ ] Overview clearly explains the "why"
 - [ ] Scope is clearly defined (in and out)
@@ -151,4 +114,4 @@ Before finalizing the document:
 - [ ] Each PR does exactly one thing
 - [ ] PRs are in dependency order
 - [ ] Size estimates are reasonable
-- [ ] Each PR is spaced with `<br>` for checkbox tracking
+- [ ] Each PR has `agentPrompt` suitable for the automation workflow

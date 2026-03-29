@@ -17,9 +17,9 @@ Create a feature branch to begin working on a PR.
 
 ### Step 1: Review Task Plan
 
-Read the task plan document (`tasks/TASK-NAME.md`) and:
-1. Find the next unblocked PR (dependencies must be merged)
-2. Check off the PR in the plan with "Status: In Progress"
+Read the task plan JSON (`tasks/TASK-ID.json`) and:
+1. Find the next unblocked PR (dependencies must be merged / prior PRs `completed` in the JSON)
+2. Set that PR's `status` to `"in_progress"` and `started` to `true`
 3. Note the estimated scope
 
 ### Step 2: Sync with Main
