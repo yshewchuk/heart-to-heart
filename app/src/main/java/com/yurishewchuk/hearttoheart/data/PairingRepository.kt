@@ -2,11 +2,8 @@ package com.yurishewchuk.hearttoheart.data
 
 import android.content.Context
 import android.util.Log
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
@@ -18,9 +15,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 import org.json.JSONObject
-
-// DataStore for local preferences
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "heart_to_heart_prefs")
 
 /**
  * Repository for handling pairing operations.
@@ -88,7 +82,7 @@ class PairingRepository(private val context: Context) {
      * Save our own decryption key (used when receiving messages).
      */
     suspend fun saveMyDecryptionKey(key: String) {
-        context.dataStore.edit { prefs ->
+        context.heartToHeartPreferencesDataStore.edit { prefs ->
             prefs[MY_DECRYPTION_KEY] = key
         }
         Log.d(TAG, "Saved my decryption key")
@@ -98,7 +92,7 @@ class PairingRepository(private val context: Context) {
      * Get our decryption key for receiving messages.
      */
     fun getMyDecryptionKey(): Flow<String?> {
-        return context.dataStore.data.map { prefs ->
+        return context.heartToHeartPreferencesDataStore.data.map { prefs ->
             prefs[MY_DECRYPTION_KEY]
         }
     }
@@ -459,7 +453,7 @@ class PairingRepository(private val context: Context) {
      * Save partner info to local DataStore.
      */
     suspend fun savePartnerLocally(partner: Partner) {
-        context.dataStore.edit { prefs ->
+        context.heartToHeartPreferencesDataStore.edit { prefs ->
             prefs[PARTNER_UID_KEY] = partner.uid
             prefs[PARTNER_FCM_TOKEN_KEY] = partner.fcmToken
             prefs[PARTNER_NAME_KEY] = partner.displayName
@@ -475,7 +469,7 @@ class PairingRepository(private val context: Context) {
      * Get the locally saved partner.
      */
     fun getPartner(): Flow<Partner?> {
-        return context.dataStore.data.map { prefs ->
+        return context.heartToHeartPreferencesDataStore.data.map { prefs ->
             val uid = prefs[PARTNER_UID_KEY] ?: return@map null
             val fcmToken = prefs[PARTNER_FCM_TOKEN_KEY] ?: return@map null
             val name = prefs[PARTNER_NAME_KEY] ?: "My Love"
@@ -503,7 +497,7 @@ class PairingRepository(private val context: Context) {
      * Update partner's FCM token (in case it changes).
      */
     suspend fun updatePartnerFcmToken(newToken: String) {
-        context.dataStore.edit { prefs ->
+        context.heartToHeartPreferencesDataStore.edit { prefs ->
             if (prefs[PARTNER_UID_KEY] != null) {
                 prefs[PARTNER_FCM_TOKEN_KEY] = newToken
             }
@@ -514,7 +508,7 @@ class PairingRepository(private val context: Context) {
      * Clear partner data (unpair).
      */
     suspend fun clearPartner() {
-        context.dataStore.edit { prefs ->
+        context.heartToHeartPreferencesDataStore.edit { prefs ->
             prefs.remove(PARTNER_UID_KEY)
             prefs.remove(PARTNER_FCM_TOKEN_KEY)
             prefs.remove(PARTNER_NAME_KEY)
@@ -526,7 +520,7 @@ class PairingRepository(private val context: Context) {
     }
 
     fun getUserAccounts(): Flow<Map<String, UserAccountEntry>> {
-        return context.dataStore.data.map { prefs ->
+        return context.heartToHeartPreferencesDataStore.data.map { prefs ->
             parseUserAccounts(prefs[USER_ACCOUNTS_KEY])
         }
     }
@@ -544,7 +538,7 @@ class PairingRepository(private val context: Context) {
         accountSelectionRepository.unpairAccount(accountUid)
 
     private suspend fun saveOrUpdateUserAccount(account: UserAccountEntry) {
-        context.dataStore.edit { prefs ->
+        context.heartToHeartPreferencesDataStore.edit { prefs ->
             val existing = parseUserAccounts(prefs[USER_ACCOUNTS_KEY]).toMutableMap()
             existing[account.anonymousUid] = account
             prefs[USER_ACCOUNTS_KEY] = serializeUserAccounts(existing)

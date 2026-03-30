@@ -2,11 +2,8 @@ package com.yurishewchuk.hearttoheart.data
 
 import android.content.Context
 import android.util.Log
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.Flow
@@ -14,8 +11,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 import org.json.JSONObject
-
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "heart_to_heart_prefs")
 
 /**
  * Handles account selection and account-scoped unpairing concerns.
@@ -33,13 +28,13 @@ class AccountSelectionRepository(private val context: Context) {
     }
 
     fun getSelectedAccountUid(): Flow<String?> {
-        return context.dataStore.data.map { prefs ->
+        return context.heartToHeartPreferencesDataStore.data.map { prefs ->
             prefs[SELECTED_ACCOUNT_UID_KEY]
         }
     }
 
     suspend fun setSelectedAccountUid(accountUid: String?) {
-        context.dataStore.edit { prefs ->
+        context.heartToHeartPreferencesDataStore.edit { prefs ->
             if (accountUid.isNullOrBlank()) {
                 prefs.remove(SELECTED_ACCOUNT_UID_KEY)
             } else {
@@ -73,7 +68,7 @@ class AccountSelectionRepository(private val context: Context) {
             }
 
             existingAccounts.remove(accountUid)
-            context.dataStore.edit { prefs ->
+            context.heartToHeartPreferencesDataStore.edit { prefs ->
                 prefs[USER_ACCOUNTS_KEY] = serializeUserAccounts(existingAccounts)
                 val selectedUid = prefs[SELECTED_ACCOUNT_UID_KEY]
                 if (selectedUid == accountUid) {
@@ -95,7 +90,7 @@ class AccountSelectionRepository(private val context: Context) {
     }
 
     fun getUserAccounts(): Flow<Map<String, PairingRepository.UserAccountEntry>> {
-        return context.dataStore.data.map { prefs ->
+        return context.heartToHeartPreferencesDataStore.data.map { prefs ->
             parseUserAccounts(prefs[USER_ACCOUNTS_KEY])
         }
     }
