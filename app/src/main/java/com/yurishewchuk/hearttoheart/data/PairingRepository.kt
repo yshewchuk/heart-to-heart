@@ -8,12 +8,14 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.messaging.FirebaseMessaging
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 /**
@@ -111,7 +113,14 @@ class PairingRepository(private val context: Context) {
                 return Result.failure(Exception("You can only have up to $MAX_USER_ACCOUNTS pairings"))
             }
 
-            val signInResult = auth.signInAnonymously().await()
+            // Must sign out first: Firebase returns the existing anonymous user if already
+            // signed in, which would reuse a paired account and block new pairing requests.
+            // NonCancellable: avoid leaving the app with no user if the UI coroutine is cancelled
+            // (e.g. user backs out) between signOut and the new anonymous sign-in.
+            val signInResult = withContext(NonCancellable) {
+                auth.signOut()
+                auth.signInAnonymously().await()
+            }
             val uid = signInResult.user?.uid
                 ?: return Result.failure(Exception("Failed to create anonymous account"))
 

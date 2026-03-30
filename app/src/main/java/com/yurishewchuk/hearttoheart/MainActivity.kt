@@ -112,9 +112,10 @@ class MainActivity : ComponentActivity() {
                     var allMessages by remember { mutableStateOf<List<StoredMessage>>(emptyList()) }
                     val scope = rememberCoroutineScope()
                     
-                    // Load account list and selected account from local storage
+                    // Full account map (paired and in-progress); home must respect selected
+                    // unpaired accounts instead of falling back to another paired profile.
                     LaunchedEffect(Unit) {
-                        accountSelectionRepository.getPairedAccounts().collect { savedAccounts ->
+                        accountSelectionRepository.getUserAccounts().collect { savedAccounts ->
                             accounts = savedAccounts
                         }
                     }
@@ -124,10 +125,16 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     
-                    val pairedAccountUids = remember(accounts) { accounts.keys.sorted() }
-                    val activeAccountUid = remember(selectedAccountUid, pairedAccountUids) {
+                    val pairedAccountUids = remember(accounts) {
+                        accounts.values
+                            .filter { it.pairedPartnerUid != null }
+                            .sortedBy { it.anonymousUid }
+                            .map { it.anonymousUid }
+                    }
+                    val activeAccountUid = remember(selectedAccountUid, accounts) {
                         when {
-                            selectedAccountUid != null && pairedAccountUids.contains(selectedAccountUid) -> selectedAccountUid
+                            selectedAccountUid != null && accounts.containsKey(selectedAccountUid) ->
+                                selectedAccountUid
                             pairedAccountUids.isNotEmpty() -> pairedAccountUids.first()
                             else -> null
                         }
