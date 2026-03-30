@@ -8,8 +8,12 @@
 #   RELEASE_KEYSTORE_BASE64 — Base64 of the upload keystore .jks file.
 #   KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD — Keystore credentials.
 #
-# Optional repository variable:
+# Optional repository variables:
 #   PLAY_TRACK — internal | alpha | beta | production (default: internal)
+#   PLAY_RELEASE_STATUS — draft | completed (default: draft)
+#     Unpublished apps in Play Console only allow API uploads as draft releases.
+#     After the app has been published at least once, set PLAY_RELEASE_STATUS=completed
+#     if you want CI to finalize the release without a manual Console step.
 #
 # Versioning: VERSION_CODE from git commit count; VERSION_NAME defaults in Gradle
 #   to 1.0.<versionCode>. Override with VERSION_NAME env if needed.
@@ -105,4 +109,4 @@ jobs:
           packageName: com.yurishewchuk.hearttoheart
           releaseFiles: app/build/outputs/bundle/release/app-release.aab
           track: ${{ vars.PLAY_TRACK != '' && vars.PLAY_TRACK || 'internal' }}
-          status: completed
+          status: ${{ vars.PLAY_RELEASE_STATUS != '' && vars.PLAY_RELEASE_STATUS || 'draft' }}
