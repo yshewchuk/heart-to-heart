@@ -137,7 +137,7 @@ class MainActivity : ComponentActivity() {
                             accounts[uid]?.pairedPartnerUid?.let { partnerUid ->
                                 Partner(
                                     uid = partnerUid,
-                                    fcmToken = "",
+                                    fcmToken = accounts[uid]?.partnerFcmToken ?: "",
                                     displayName = accounts[uid]?.displayName ?: "My Love",
                                     pairedAt = accounts[uid]?.pairedAt ?: 0L,
                                     encryptionKey = accounts[uid]?.encryptionKey

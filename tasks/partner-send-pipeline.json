@@ -1,0 +1,118 @@
+{
+  "id": "partner-send-pipeline",
+  "title": "Partner Send Pipeline \u2014 Unify Schema & Add Tests",
+  "overview": {
+    "summary": "Fix the broken partner-send path (paired app fails with 'Partner FCM token not found'), then refactor the account persistence layer into a single AccountStore that owns the account schema and all its reads/writes, and seed the repo's first unit tests so this class of bug is caught by CI instead of by hand.",
+    "problemStatement": "After the multi-partner refactor, the app appears paired but sending fails. MainActivity rebuilds the send Partner from UserAccountEntry with fcmToken hardcoded to \"\" because UserAccountEntry has no token field; the partner's FCM token is only ever written to the legacy single-partner DataStore keys via savePartnerLocally(), which the new send path never reads. MessageSender then falls back to fetching users/{partnerUid}.fcmToken from Firestore, but nothing calls initializeUserDocument() at startup (and onNewToken is an unimplemented TODO), so that field is blank too. Result: 'Partner FCM token not found'. Separately, the toast shows 'sending to null' because UserAccountEntry.displayName is nullable, never set by either pairing call site, and rendered without a fallback.",
+    "keyInsight": "This is a partial data-model migration: the read side moved to the new per-account model while the write side stayed on the legacy model, and the two never meet. The root process failure is that the account schema is smeared across four places \u2014 its shape in PairingRepository.UserAccountEntry, its write in markUserAccountAsPaired, a DUPLICATE parse/serialize in AccountSelectionRepository, and a hand-assembled read in MainActivity. If read and write must change together, they should live together: a single AccountStore owning schema + serialization + read + write makes drift impossible by construction, and makes the layer unit-testable (the repo currently has zero tests).",
+    "scope": {
+      "in": [
+        "Persist partnerFcmToken on UserAccountEntry and populate it in both completePairing and acceptPairingRequest",
+        "Populate activePartner.fcmToken from the account instead of hardcoding \"\"",
+        "Ensure partner displayName is never null in the send UI (fallback at save or render time)",
+        "Extract AccountStore as the single owner of the account schema, serialization, and all reads/writes",
+        "Delete the duplicate parse/serialize logic from AccountSelectionRepository and fold it into AccountStore",
+        "MainActivity consumes AccountStore.activePartner() instead of hand-assembling Partner",
+        "Call initializeUserDocument() on startup/sign-in and implement HeartFCMService.onNewToken so tokens stay fresh",
+        "Add kotlinx-coroutines-test + robolectric test deps and the repo's first unit tests (schema round-trip, token round-trip, selection fallback, corrupt-JSON tolerance)",
+        "Wire a Gradle unit-test task into CI"
+      ],
+      "out": [
+        "Changing the Firestore schema or security rules",
+        "Forward secrecy / post-pairing key rotation",
+        "Instrumented/androidTest or emulator-based tests (headless CI cannot run them)",
+        "Reworking the pairing handshake UX or QR format",
+        "Alarm/volume behavior fixes (tracked separately)"
+      ]
+    },
+    "architecture": "## Problem: schema smeared across four places\n\n```\nUserAccountEntry  \u2500\u2500 shape \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u25ba PairingRepository.kt\nwrite            \u2500\u2500 markUserAccountAsPaired \u25ba PairingRepository.kt\nread/write DUP   \u2500\u2500 parse/serialize (copy #2)\u25ba AccountSelectionRepository.kt  \u2190 duplicate schema!\nread             \u2500\u2500 activePartner { fcmToken = \"\" }\u25ba MainActivity.kt            \u2190 loses token\n```\n\nAdd a field in one place and nothing forces the other three to notice \u2014 this is how the FCM token was lost.\n\n## Solution: AccountStore (single source of truth)\n\n```\nAccountStore  (owns DataStore user_accounts key + SELECTED_ACCOUNT_UID)\n\u251c\u2500\u2500 schema: UserAccountEntry + toJson/fromJson   \u2190 ONE copy\n\u251c\u2500\u2500 write: createAccount(), markPaired(uid, partner, token), unpair(uid), select(uid)\n\u251c\u2500\u2500 read:  accounts(): Flow<Map>, activePartner(): Flow<Partner?>, selectedUid(): Flow<String?>\n\u2514\u2500\u2500 token: refreshFcmToken(uid, token)\n```\n\n- PairingRepository keeps Firestore handshake logic but DELEGATES persistence to AccountStore, so 'pairing completes' and 'token stored' become one atomic call.\n- MainActivity calls accountStore.activePartner() \u2014 read and write now share a schema by construction and cannot drift.\n- AccountSelectionRepository folds into AccountStore (it already duplicated the schema).\n- Firebase types (FirebaseAuth, FirebaseFirestore, FirebaseMessaging) stay at the edges (PairingRepository / MessageSender / HeartFCMService) so AccountStore is pure JVM and unit-testable without a device.\n\n## Testing strategy\n\n- testImplementation adds kotlinx-coroutines-test and org.robolectric:robolectric (DataStore needs a Context).\n- Tests that would have caught this bug:\n  1. markPaired() then activePartner() \u2192 fcmToken & displayName round-trip (the regression: today read != write)\n  2. UserAccountEntry serialization round-trip including new fields (guards schema drift)\n  3. selectedUid fallback after unpair of the selected account\n  4. parseUserAccounts on corrupt JSON \u2192 empty map, no crash\n- CI: a Gradle test task runs these on every PR so regression is caught without hardware.",
+    "affectedAreas": [
+      {
+        "path": "app/src/main/java/com/yurishewchuk/hearttoheart/data/PairingRepository.kt",
+        "note": "UserAccountEntry gains partnerFcmToken; markUserAccountAsPaired populates token + displayName; persists via AccountStore after refactor"
+      },
+      {
+        "path": "app/src/main/java/com/yurishewchuk/hearttoheart/data/AccountSelectionRepository.kt",
+        "note": "duplicate schema removed; folded into AccountStore"
+      },
+      {
+        "path": "app/src/main/java/com/yurishewchuk/hearttoheart/data/AccountStore.kt",
+        "note": "NEW \u2014 single owner of account schema, serialization, reads, writes, selection, token refresh"
+      },
+      {
+        "path": "app/src/main/java/com/yurishewchuk/hearttoheart/MainActivity.kt",
+        "note": "activePartner built from AccountStore.activePartner() with real fcmToken; no hand-assembled Partner"
+      },
+      {
+        "path": "app/src/main/java/com/yurishewchuk/hearttoheart/data/MessageSender.kt",
+        "note": "uses populated fcmToken; Firestore fallback now effective once initializeUserDocument is wired"
+      },
+      {
+        "path": "app/src/main/java/com/yurishewchuk/hearttoheart/services/HeartFCMService.kt",
+        "note": "implement onNewToken to propagate rotations"
+      },
+      {
+        "path": "app/build.gradle.kts",
+        "note": "add kotlinx-coroutines-test + robolectric testImplementation"
+      },
+      {
+        "path": "app/src/test/java/.../data/AccountStoreTest.kt",
+        "note": "NEW \u2014 first unit tests in repo"
+      },
+      {
+        "path": ".github/workflows/",
+        "note": "add/extend a workflow to run ./gradlew testDebugUnitTest on PRs"
+      }
+    ],
+    "userExperience": "No visible UI change. After PR 1 a paired device can actually send messages again (the toast shows the partner's name, not 'null', and the send succeeds). The rest is internal hardening: the account schema lives in one tested component, so future pairing/token changes can't silently desync read from write again."
+  },
+  "pullRequests": [
+    {
+      "id": 0,
+      "title": "Fix partner send \u2014 persist & read the FCM token",
+      "description": "Minimal fix for the broken send. Add partnerFcmToken (and a non-null displayName) to UserAccountEntry, populate it in both completePairing (from the fetched partnerFcmToken) and acceptPairingRequest (from request.requesterFcmToken), and make MainActivity build activePartner.fcmToken from the account instead of hardcoding \"\". Add the first unit test (Robolectric) proving a markPaired \u2192 activePartner token/displayName round-trip. This is the bug fix and ships on its own so users are unblocked immediately.",
+      "estimate": "~4 files, ~200 lines",
+      "status": "completed",
+      "started": false,
+      "dependencies": [],
+      "agentPrompt": "Implement PR 1: Fix the broken partner send. (1) Add partnerFcmToken: String? to PairingRepository.UserAccountEntry and include it in toJson/fromJson. (2) In completePairing, pass the fetched partnerFcmToken into markUserAccountAsPaired; in acceptPairingRequest pass request.requesterFcmToken; extend markUserAccountAsPaired to store it and to default displayName when null. (3) In MainActivity, populate activePartner.fcmToken from accounts[uid]?.partnerFcmToken instead of \"\" and render the send toast name with a non-null fallback. (4) Add kotlinx-coroutines-test and org.robolectric:robolectric as testImplementation in app/build.gradle.kts, and add app/src/test/.../data/AccountStoreTest (or PairingRepositoryTest) verifying that after a paired account is saved, the partner read back exposes the same fcmToken and a non-null displayName. Do NOT do the AccountStore refactor in this PR. Verify with ./gradlew testDebugUnitTest.",
+      "changes": "UserAccountEntry gained partnerFcmToken; completePairing/acceptPairingRequest persist it; MainActivity.activePartner reads it (was hardcoded \"\"); displayName defaults to non-null; added Robolectric + coroutines-test deps and UserAccountEntryTest (3 tests, all pass)."
+    },
+    {
+      "id": 1,
+      "title": "Extract AccountStore \u2014 single owner of the account schema",
+      "description": "Refactor (no behavior change). Create AccountStore that owns the user_accounts DataStore key, the single copy of UserAccountEntry serialization, and all reads/writes (createAccount, markPaired, unpair, select, accounts(), activePartner(), selectedUid()). Delete the duplicate parse/serialize from AccountSelectionRepository and fold its responsibilities in. PairingRepository delegates persistence to AccountStore; MainActivity consumes AccountStore.activePartner() instead of hand-assembling Partner. Firebase types stay at the edges so AccountStore is pure JVM. Move/extend the unit tests to cover schema round-trip (all fields), selection fallback after unpair, and corrupt-JSON tolerance.",
+      "estimate": "~6 files, ~450 lines",
+      "status": "planned",
+      "started": false,
+      "dependencies": [
+        "PR 1"
+      ],
+      "agentPrompt": "Implement PR 2: Extract AccountStore as the single source of truth for the per-account schema. Create app/.../data/AccountStore.kt owning the heart_to_heart_prefs user_accounts + selected_account_uid keys, the ONLY copy of UserAccountEntry toJson/fromJson, and suspend/flow APIs: createAccount, markPaired, unpair, select, accounts(), activePartner(), selectedUid(), refreshFcmToken. Fold AccountSelectionRepository into it and delete the duplicated parse/serialize. Update PairingRepository to persist through AccountStore (keep Firestore handshake logic) and MainActivity to build the send partner from AccountStore.activePartner(). Keep Firebase types out of AccountStore so it stays unit-testable. Extend the unit tests: full-field serialization round-trip, selectedUid fallback when the selected account is unpaired, and parseUserAccounts returning emptyMap on corrupt JSON. Verify with ./gradlew testDebugUnitTest."
+    },
+    {
+      "id": 2,
+      "title": "Token freshness \u2014 initialize doc on start + implement onNewToken",
+      "description": "Keep the partner's Firestore fcmToken current so the MessageSender Firestore fallback actually works and token rotations don't break delivery. Call initializeUserDocument() on startup/after anonymous sign-in, and implement HeartFCMService.onNewToken to write the new token via the updateFcmToken Cloud Function and AccountStore.refreshFcmToken. Add a unit test for the token-refresh path.",
+      "estimate": "~4 files, ~150 lines",
+      "status": "planned",
+      "started": false,
+      "dependencies": [
+        "PR 2"
+      ],
+      "agentPrompt": "Implement PR 3: Token freshness. (1) Call PairingRepository.initializeUserDocument() after anonymous sign-in and on app start so users/{uid}.fcmToken exists for the MessageSender Firestore fallback. (2) Implement HeartFCMService.onNewToken: persist the new token locally via AccountStore.refreshFcmToken and push it to Firestore via the updateFcmToken callable (best-effort). (3) Add a unit test covering refreshFcmToken updating the stored account. Depends on PR 2 (AccountStore). Verify with ./gradlew testDebugUnitTest."
+    },
+    {
+      "id": 3,
+      "title": "CI \u2014 run unit tests on every PR",
+      "description": "Add a GitHub Actions job that runs ./gradlew testDebugUnitTest (with the google-services placeholder the existing build workflow already uses) so the new tests gate future PRs. Keep it consistent with the existing android-build workflow's JDK/SDK setup.",
+      "estimate": "~1 file, ~80 lines",
+      "status": "planned",
+      "started": false,
+      "dependencies": [
+        "PR 1"
+      ],
+      "agentPrompt": "Implement PR 4: Add a CI workflow (or extend the existing android-build workflow) that runs ./gradlew testDebugUnitTest on pull requests, reusing the same JDK 21 / Android SDK setup and the GOOGLE_SERVICES_JSON secret / placeholder handling already used for assembleDebug. The job must fail the PR when unit tests fail. Depends on PR 1 (tests exist)."
+    }
+  ]
+}

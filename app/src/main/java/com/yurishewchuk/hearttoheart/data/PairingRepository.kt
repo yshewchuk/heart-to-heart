@@ -30,6 +30,7 @@ class PairingRepository(private val context: Context) {
     
     companion object {
         private const val TAG = "PairingRepository"
+        private const val DEFAULT_PARTNER_NAME = "My Love"
         
         // Firestore collections
         private const val USERS_COLLECTION = "users"
@@ -51,6 +52,7 @@ class PairingRepository(private val context: Context) {
         val pairedPartnerUid: String? = null,
         val pairedAt: Long? = null,
         val encryptionKey: String? = null,
+        val partnerFcmToken: String? = null,
         val displayName: String? = null
     ) {
         // Preferences DataStore stores primitives/strings only, so we persist this data class
@@ -61,6 +63,7 @@ class PairingRepository(private val context: Context) {
                 "pairedPartnerUid" to pairedPartnerUid,
                 "pairedAt" to pairedAt,
                 "encryptionKey" to encryptionKey,
+                "partnerFcmToken" to partnerFcmToken,
                 "displayName" to displayName
             )
         )
@@ -72,6 +75,7 @@ class PairingRepository(private val context: Context) {
                     pairedPartnerUid = json.optString("pairedPartnerUid").ifBlank { null },
                     pairedAt = if (json.has("pairedAt") && !json.isNull("pairedAt")) json.getLong("pairedAt") else null,
                     encryptionKey = json.optString("encryptionKey").ifBlank { null },
+                    partnerFcmToken = json.optString("partnerFcmToken").ifBlank { null },
                     displayName = json.optString("displayName").ifBlank { null }
                 )
             }
@@ -318,7 +322,8 @@ class PairingRepository(private val context: Context) {
             markUserAccountAsPaired(
                 accountUid = myUserId,
                 partnerUid = request.requesterUid,
-                encryptionKeyOverride = myEncryptionKey
+                encryptionKeyOverride = myEncryptionKey,
+                partnerFcmToken = request.requesterFcmToken
             )
             
             Log.d(TAG, "Pairing accepted with: ${request.requesterUid}, encryption: ${request.requesterEncryptionKey != null}")
@@ -436,7 +441,11 @@ class PairingRepository(private val context: Context) {
                 encryptionKey = partnerEncryptionKey
             )
             savePartnerLocally(partner)
-            markUserAccountAsPaired(accountUid = myUserId, partnerUid = partnerUserId)
+            markUserAccountAsPaired(
+                accountUid = myUserId,
+                partnerUid = partnerUserId,
+                partnerFcmToken = partnerFcmToken
+            )
             
             // Clear temporary key storage
             pendingEncryptionKey = null
@@ -615,7 +624,8 @@ class PairingRepository(private val context: Context) {
     private suspend fun markUserAccountAsPaired(
         accountUid: String,
         partnerUid: String,
-        encryptionKeyOverride: String? = null
+        encryptionKeyOverride: String? = null,
+        partnerFcmToken: String? = null
     ) {
         val storedAccount = getUserAccounts().first()[accountUid]
         saveOrUpdateUserAccount(
@@ -624,7 +634,8 @@ class PairingRepository(private val context: Context) {
                 pairedPartnerUid = partnerUid,
                 pairedAt = System.currentTimeMillis(),
                 encryptionKey = encryptionKeyOverride ?: storedAccount?.encryptionKey,
-                displayName = storedAccount?.displayName
+                partnerFcmToken = partnerFcmToken,
+                displayName = storedAccount?.displayName ?: DEFAULT_PARTNER_NAME
             )
         )
     }
